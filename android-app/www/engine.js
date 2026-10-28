@@ -328,10 +328,16 @@
   const EXT_KEY = 'clocktimer.ext';
   let extOn = false;
   try { extOn = !!(JSON.parse(localStorage.getItem(EXT_KEY) || '{}').on); } catch (e) { extOn = false; }
+  // The Android side puts a small object called ExtDisplayNative on the page (see native/ExtDisplayPlugin.java)
+  const N = window.ExtDisplayNative;
   let Ext = window.__extStub || null;
-  try {
-    if (!Ext && window.Capacitor && window.Capacitor.isNativePlatform && window.Capacitor.isNativePlatform()) Ext = window.Capacitor.registerPlugin('ExtDisplay');
-  } catch (e) { Ext = null; }
+  if (!Ext && N) {
+    Ext = {
+      push: async (o) => { N.push(o.json); },
+      setEnabled: async (o) => { N.setEnabled(!!o.on); },
+      status: async () => JSON.parse(N.status()),
+    };
+  }
   const two = (n) => String(n).padStart(2, '0');
   const fmtClock = (ms) => {
     const s = Math.ceil(ms / 1000), h = Math.floor(s / 3600), m = Math.floor(s % 3600 / 60);

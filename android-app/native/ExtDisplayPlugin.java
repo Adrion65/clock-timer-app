@@ -8,6 +8,7 @@ import android.os.Bundle;
 import android.view.Display;
 import android.view.ViewGroup;
 import android.view.WindowManager;
+import android.webkit.JavascriptInterface;
 import android.webkit.WebSettings;
 import android.webkit.WebView;
 import android.webkit.WebViewClient;
@@ -36,6 +37,23 @@ public class ExtDisplayPlugin extends Plugin {
   public void load() {
     dm = (DisplayManager) getContext().getSystemService(Context.DISPLAY_SERVICE);
     if (dm != null) dm.registerDisplayListener(listener, null);
+    // Give the pages a direct line to this code, so nothing depends on Capacitor's JavaScript.
+    final Object bridgeObj = new Object() {
+      @JavascriptInterface public void setEnabled(boolean on) { enabled = on; sync(); }
+      @JavascriptInterface public void push(String json) {
+        lastJson = json;
+        final String js = json;
+        if (js != null && getActivity() != null) {
+          getActivity().runOnUiThread(() -> { if (pres != null) pres.send(js); });
+        }
+      }
+      @JavascriptInterface public String status() {
+        return "{\"connected\":" + (findDisplay() != null) + ",\"showing\":" + (pres != null && pres.isShowing()) + "}";
+      }
+    };
+    getActivity().runOnUiThread(() -> {
+      try { getBridge().getWebView().addJavascriptInterface(bridgeObj, "ExtDisplayNative"); } catch (Exception e) { /* no web view yet */ }
+    });
   }
 
   @Override

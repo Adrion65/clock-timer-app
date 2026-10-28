@@ -163,7 +163,7 @@
     <div class="rowx" id="extRow"><span id="extLbl">Second screen (HDMI)<small id="extSub" style="display:block;color:var(--muted);font-size:.7em;margin-top:2px"></small></span><button class="switch" id="swExt" role="switch" aria-checked="false" aria-labelledby="extLbl"><i></i></button></div>
     <div class="rowx"><span id="overLbl">Count up after zero</span><button class="switch" id="swOver" role="switch" aria-checked="true" aria-labelledby="overLbl"><i></i></button></div>
   </div>
-  <div class="ver">Clock &amp; Timer for Android &middot; version 1.2</div>
+  <div class="ver">Clock &amp; Timer for Android &middot; version 1.3</div>
 </aside>
 
 <div id="confirm" role="alertdialog" aria-modal="true" aria-labelledby="cTitle" aria-describedby="cText">
@@ -355,10 +355,10 @@
   let extOn = false;
   async function extRefresh() {
     const st = api.extStatus ? await api.extStatus() : { supported: false };
-    $('#extRow').hidden = !st.supported;
     extOn = !!st.on;
-    $('#swExt').setAttribute('aria-checked', extOn);
-    $('#extSub').textContent = !extOn ? 'Off' : st.connected ? 'Showing on the connected screen' : 'On, waiting for a screen to be plugged in';
+    $('#swExt').disabled = !st.supported;
+    $('#swExt').setAttribute('aria-checked', st.supported && extOn);
+    $('#extSub').textContent = !st.supported ? 'Not available in this build' : !extOn ? 'Off' : st.connected ? 'Showing on the connected screen' : 'On, waiting for a screen to be plugged in';
   }
   $('#swExt').onclick = async () => { await api.extSet(!extOn); extRefresh(); };
   $('#moreBtn').addEventListener('click', extRefresh);
