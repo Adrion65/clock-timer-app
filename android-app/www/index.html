@@ -1,0 +1,910 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Clock &amp; Timer</title>
+<style>
+  :root {
+    --bg: #12161c; --surface: #1b222b; --line: #2a3441;
+    --text: #e8edf2; --muted: #8a97a6; --accent: #5fb3d9; --alert: #ff6b5e;
+    --on-accent: #0b1218;
+  }
+  @media (prefers-color-scheme: light) {
+    :root {
+      --bg: #f3f5f8; --surface: #ffffff; --line: #d5dce5;
+      --text: #151b23; --muted: #5b6776; --accent: #1f7fa8; --alert: #d93a2c;
+      --on-accent: #ffffff;
+    }
+  }
+  * { box-sizing: border-box; }
+  html, body { height: 100%; margin: 0; overflow: hidden; }
+  body {
+    background: var(--bg); color: var(--text);
+    font-family: system-ui, -apple-system, "Segoe UI", sans-serif;
+    display: flex; align-items: center; justify-content: center;
+    user-select: none;
+  }
+  body:not([data-view="launcher"]):not([data-view="help"]) { -webkit-app-region: drag; padding-top: 28px; }
+  body.done { animation: flash .6s ease-in-out 6; }
+  @keyframes flash { 50% { background: color-mix(in srgb, var(--alert) 45%, var(--bg)); } }
+  @media (prefers-reduced-motion: reduce) { body.done { animation: none; background: color-mix(in srgb, var(--alert) 35%, var(--bg)); } }
+
+  section { display: none; width: 100%; padding: 12px 16px; text-align: center; }
+  body[data-view="launcher"] #launcher,
+  body[data-view="clock"] #clock,
+  body[data-view="display"] #display,
+  body[data-view="controls"] #controls,
+  body[data-view="colors"] #colors,
+  body[data-view="audio"] #audioWin,
+  body[data-view="show"] #showWin,
+  body[data-view="presets"] #presetsWin,
+  body[data-view="help"] #help { display: block; }
+
+  .digits { font-weight: 250; font-variant-numeric: tabular-nums; line-height: 1; letter-spacing: -0.02em; margin: 0; }
+  #clockTime { font-size: 17vw; }
+  #clockDate { color: var(--muted); margin-top: 1.5vh; font-size: 3.6vw; }
+  #dispTime { font-size: 20vw; }
+  #dispEnd { color: var(--muted); font-size: clamp(11px, 6vh, 28px); margin-top: 1.5vh; white-space: nowrap; font-variant-numeric: tabular-nums; }
+  #dispEnd.off { display: none; }
+  @media (max-height: 130px) { #dispEnd { display: none; } }
+  #adj { align-items: center; }
+  #adj label { color: var(--muted); font-size: 13px; }
+  #untilIn { font-size: 13px; padding: 4px 6px; }
+  .fit { display: inline-block; white-space: nowrap; }
+  #ctlTime { font-size: 44px; }
+  #ctlOver { display: none; margin: 4px 0 0; font-size: 18px; font-weight: 600; color: var(--alert); font-variant-numeric: tabular-nums; }
+  #ctlOver.on { display: block; }
+  body.done .digits { color: var(--alert); }
+  .bar { height: clamp(6px, 2.2vh, 28px); background: var(--line); border-radius: 999px; margin: 2.5vh auto 0; width: 92%; overflow: hidden; }
+  .bar i { display: block; height: 100%; width: 100%; background: var(--accent); }
+  body.done .bar i { background: var(--alert); }
+  .row { display: flex; gap: 8px; justify-content: center; flex-wrap: wrap; margin-top: 10px; }
+
+  button, input { font: inherit; color: var(--text); background: var(--surface); border: 1px solid var(--line); border-radius: 8px; padding: 8px 14px; -webkit-app-region: no-drag; }
+  button { cursor: pointer; }
+  button:hover:not(:disabled) { border-color: var(--accent); }
+  button:disabled { opacity: .4; cursor: default; }
+  button.primary { background: var(--accent); color: var(--on-accent); border-color: var(--accent); font-weight: 600; }
+  button.chip { padding: 4px 10px; font-size: 13px; color: var(--muted); }
+  button.chip.on { color: var(--text); border-color: var(--accent); }
+  :focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+  select { font: inherit; font-size: 13px; color: var(--text); background: var(--surface); border: 1px solid var(--line); border-radius: 8px; padding: 4px 8px; -webkit-app-region: no-drag; }
+  body[data-view="show"], body[data-view="presets"] { align-items: flex-start; }
+  #showWin, #presetsWin { text-align: left; -webkit-app-region: no-drag; overflow-y: auto; max-height: calc(100vh - 28px); }
+  #showWin h2, #presetsWin h2 { font-size: 16px; font-weight: 500; margin: 0 0 4px; }
+  #showWin .hint, #presetsWin .hint { color: var(--muted); font-size: 12px; line-height: 1.4; margin: 0 0 10px; }
+  .seg { display: grid; grid-template-columns: 20px minmax(80px, 1fr) 74px 92px auto; gap: 6px; align-items: center; margin: 5px 0; padding: 4px 6px; border-radius: 8px; border: 1px solid transparent; }
+  .seg.cur { border-color: var(--accent); background: color-mix(in srgb, var(--accent) 12%, var(--surface)); }
+  .seg.past { opacity: .5; }
+  .seg .si { color: var(--muted); font-size: 12px; text-align: right; }
+  .seg input { width: 100%; padding: 4px 8px; font-size: 13px; }
+  .seg .sd { text-align: center; font-variant-numeric: tabular-nums; }
+  .seg .se { color: var(--muted); font-size: 12px; white-space: nowrap; font-variant-numeric: tabular-nums; }
+  .seg .sb { display: flex; gap: 4px; }
+  .seg .sb button { padding: 2px 7px; font-size: 12px; }
+  #showFoot { color: var(--muted); font-size: 12px; margin: 8px 0 0; min-height: 16px; }
+  #showList .empty, #presetList .empty { color: var(--muted); font-size: 13px; margin: 10px 0; }
+  .prow { display: flex; align-items: center; gap: 8px; margin: 5px 0; }
+  .prow input { width: 84px; text-align: center; }
+  #segBar { display: none; align-items: center; gap: 6px; margin-top: 8px; }
+  #segBar.on { display: flex; }
+  #segLabel { color: var(--muted); font-size: 12px; max-width: 250px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  #segBar button { padding: 3px 10px; font-size: 13px; }
+  #audioWin h2 { font-size: 16px; font-weight: 500; margin: 0 0 6px; }
+  #audio { margin-top: 10px; -webkit-app-region: no-drag; }
+  #audio.off #volSlider, #audio.off #volOut { opacity: .4; }
+  input[type=number] { width: 72px; text-align: center; padding: 4px 6px; font-size: 13px; }
+
+  #ctl { display: none; position: absolute; top: 6px; right: 6px; gap: 6px; }
+  body:not([data-view="launcher"]):not([data-view="help"]) #ctl { display: flex; }
+  #ctl button { padding: 2px 9px; font-size: 12px; color: var(--muted); }
+  #ctl button[aria-pressed="true"] { color: var(--text); border-color: var(--accent); }
+  #fmt { display: none; }
+  body[data-view="clock"] #fmt, body[data-view="display"][data-face="clock"] #fmt { display: inline-block; }
+  #face { display: none; }
+  body[data-view="display"] #face { display: inline-block; }
+  body[data-view="display"][data-face="clock"] #dispTimerFace { display: none; }
+  body[data-view="display"]:not([data-face="clock"]) #dispClockFace { display: none; }
+  #dispClockDate { color: var(--muted); margin-top: 1.5vh; }
+
+  #tt { margin-top: 10px; -webkit-app-region: no-drag; }
+  .ttTop, .ttrow { display: flex; align-items: center; gap: 10px; justify-content: center; margin-top: 8px; }
+  #tt button { padding: 4px 12px; font-size: 13px; color: var(--muted); }
+  #tt button[aria-pressed="true"] { background: var(--accent); color: var(--on-accent); border-color: var(--accent); font-weight: 600; }
+  #tt .chip.on { color: var(--text); border-color: var(--accent); }
+  #tt input[type=range] { flex: 1; max-width: 190px; accent-color: var(--accent); padding: 0; border: 0; background: none; }
+  #tt input[type=time] { padding: 3px 6px; font-size: 13px; }
+  #tt label { font-size: 13px; color: var(--muted); }
+  #tt.off .ttrow { opacity: .55; }
+  #tt output { min-width: 52px; text-align: left; font-size: 13px; font-variant-numeric: tabular-nums; }
+  #notice { color: var(--alert); font-size: 12px; margin-top: 4px; min-height: 15px; }
+  #real { color: var(--muted); font-size: 12px; margin-top: 8px; min-height: 15px; }
+  #preview { color: var(--accent); font-size: 12px; margin-top: 4px; min-height: 15px; }
+
+  #colors { text-align: left; -webkit-app-region: no-drag; overflow-y: auto; max-height: calc(100vh - 28px); }
+  #colors h2 { font-size: 16px; font-weight: 500; margin: 0 0 4px; }
+  #colors .hint { color: var(--muted); font-size: 12px; line-height: 1.4; margin: 0 0 10px; }
+  .rule { display: flex; align-items: center; gap: 6px; margin: 6px 0; font-size: 13px; }
+  .rule input[type=number] { width: 58px; }
+  .rule input[type=color] { width: 46px; height: 32px; padding: 2px; cursor: pointer; }
+  .rule .del { margin-left: auto; padding: 2px 9px; color: var(--muted); }
+  #colors .empty { color: var(--muted); font-size: 13px; margin: 10px 0; }
+
+  body[data-view="help"] { align-items: flex-start; }
+  #help { text-align: left; user-select: text; height: 100vh; overflow-y: auto; max-width: 720px; padding: 22px 28px 40px; line-height: 1.5; font-size: 14px; }
+  #help h2 { font-size: 22px; font-weight: 500; margin: 0 0 8px; }
+  #help h3 { font-size: 15px; font-weight: 600; margin: 24px 0 6px; }
+  #help p { margin: 0 0 10px; color: var(--muted); }
+  #help ol { margin: 0 0 10px; padding-left: 20px; color: var(--muted); }
+  #help li { margin-bottom: 6px; }
+  #help strong { color: var(--text); font-weight: 600; }
+  #help code { font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace; font-size: 12.5px; background: var(--surface); border: 1px solid var(--line); border-radius: 5px; padding: 1px 6px; word-break: break-all; color: var(--text); }
+  #help table { width: 100%; border-collapse: collapse; margin: 4px 0 10px; }
+  #help td { padding: 6px 8px 6px 0; border-top: 1px solid var(--line); vertical-align: top; }
+  #help td:first-child { width: 34%; color: var(--text); }
+  #help td code { display: inline-block; margin: 0 4px 4px 0; }
+  #help .state { color: var(--accent); }
+
+  #launcher { max-width: 440px; }
+  #launcher h1 { font-size: 26px; font-weight: 500; margin: 0 0 6px; }
+  #launcher p { color: var(--muted); margin: 0 0 24px; line-height: 1.5; }
+  #launcher button { padding: 12px 18px; font-size: 15px; }
+  #launcher #apiNote { font-size: 12px; margin: 18px 0 8px; }
+  #launcher #newHelp { padding: 5px 12px; font-size: 13px; color: var(--muted); }
+
+  /* ---- Android (touch, one screen at a time) ---- */
+  .android #pin, .android #dispToggle, .android #newHelp, .android #apiNote { display: none !important; }
+  .android button.chip { padding: 8px 12px; font-size: 14px; }
+  .android #ctl button { padding: 6px 12px; font-size: 13px; }
+  .android input[type=number] { width: 84px; padding: 8px 6px; font-size: 15px; }
+  .android select { padding: 8px 10px; font-size: 15px; }
+  .android button, .android input[type=time] { min-height: 40px; }
+  .android .seg .sb button { min-height: 0; padding: 6px 9px; }
+  .android .seg { grid-template-columns: 18px minmax(70px, 1fr) 66px auto; }
+  .android .seg .se { display: none; }
+  .android.v-controls, .android.v-audio, .android.v-show, .android.v-presets, .android.v-colors, .android.v-launcher { overflow-y: auto; }
+  .android.v-controls body, .android.v-audio body, .android.v-show body, .android.v-presets body, .android.v-colors body, .android.v-launcher body {
+    align-items: flex-start; height: auto; min-height: 100%; overflow-y: auto; }
+  .android.v-launcher #launcher { margin: auto; }
+  .android.v-launcher body { align-items: center; }
+  .android #showWin, .android #presetsWin, .android #colors { max-height: none; overflow: visible; }
+  .android body { padding-bottom: 24px; }
+  .android.v-display body, .android.v-clock body { padding-bottom: 0; }
+</style>
+</head>
+<body data-view="launcher">
+
+<div id="ctl">
+  <button id="face" title="Switch this display between the timer and the clock">Show clock</button>
+  <button id="fmt" title="Switch 12/24-hour">12/24</button>
+  <button id="pin" aria-pressed="true" title="Keep this window above other apps">On top</button>
+  <button id="x" aria-label="Close window">&#10005;</button>
+</div>
+
+<section id="launcher">
+  <h1>Clock &amp; Timer</h1>
+  <p>Open the countdown and its controls as separate windows, and place each one wherever you like. There is one shared timer, so every display and control window stays in sync.</p>
+  <div class="row">
+    <button class="primary" id="newClock">New clock</button>
+    <button class="primary" id="newDisplay">Timer display</button>
+    <button class="primary" id="newControls">Timer controls</button>
+    <button class="primary" id="newColors">Timer colors</button>
+  </div>
+  <p class="note" id="apiNote"></p>
+  <div class="row" style="margin-top:0"><button class="chip" id="newHelp">Remote control help</button></div>
+</section>
+
+<section id="clock">
+  <p class="digits fit" id="clockTime"></p>
+  <div id="clockDate"></div>
+</section>
+
+<section id="display">
+  <div id="dispTimerFace">
+    <p class="digits fit" id="dispTime"></p>
+    <div class="bar"><i id="dispFill"></i></div>
+    <div id="dispEnd">&nbsp;</div>
+  </div>
+  <div id="dispClockFace">
+    <p class="digits fit" id="dispClockTime"></p>
+    <div id="dispClockDate"></div>
+  </div>
+</section>
+
+<section id="controls">
+  <p class="digits" id="ctlTime"></p>
+  <p id="ctlOver" aria-live="off"></p>
+  <div class="row" id="presets"></div>
+  <div class="row" id="adj">
+    <button class="chip" id="minus1" title="Take a minute off the timer">&minus;1 min</button>
+    <button class="chip" id="plus1" title="Add a minute to the timer">+1 min</button>
+    <label for="untilIn">Until</label>
+    <input type="time" id="untilIn" step="1" aria-label="Clock time to count down to">
+    <button class="chip" id="untilGo" title="Start counting down to the next time the clock reads this">Go</button>
+  </div>
+  <div id="tt" class="off">
+    <div class="ttTop">
+      <button id="ttBtn" aria-pressed="false" title="Run the timer faster than real time">Time travel: Off</button>
+      <span role="group" aria-label="Time travel mode">
+        <button id="modeSpeed" class="chip">Speed</button>
+        <button id="modeEnd" class="chip">End time</button>
+      </span>
+    </div>
+    <div id="ttSpeedRow" class="ttrow">
+      <input type="range" id="ttSlider" min="0.5" max="3" step="0.01" value="1.5" aria-label="Time travel speed">
+      <output id="ttOut" for="ttSlider">1.5&times;</output>
+    </div>
+    <div id="ttEndRow" class="ttrow" style="display:none">
+      <label for="ttEnd">End at</label>
+      <input type="time" id="ttEnd" step="1">
+    </div>
+  </div>
+  <div id="segBar">
+    <span id="segLabel"></span>
+    <button id="ctlPrev" class="chip" title="Previous segment">&#9664;</button>
+    <button id="ctlNext" title="Start the next segment">Next &#9654;</button>
+  </div>
+  <div id="real"></div>
+  <div id="preview"></div>
+  <div id="notice"></div>
+  <div class="row">
+    <button class="primary" id="go">Start</button>
+    <button id="reset">Reset</button>
+    <button id="openColors">Colors</button>
+    <button id="openAudio">Audio</button>
+    <button id="openShow">Run of show</button>
+    <button id="dispToggle">Hide display</button>
+    <button id="faceToggle">Show clock</button>
+    <button id="endToggle" title="Show the real clock time the timer will finish, under the countdown on the Timer display">Display ends-at: On</button>
+    <button id="overToggle" title="Show the count-up after zero on the Timer display (the controls window always shows it)">Display overtime: On</button>
+  </div>
+</section>
+
+<section id="audioWin">
+  <h2>Audio</h2>
+  <div id="audio">
+    <div class="ttrow">
+      <button id="muteBtn" aria-pressed="false" title="Mute or unmute the end-of-timer sound">Sound: On</button>
+      <input type="range" id="volSlider" min="0" max="100" step="1" value="80" aria-label="Volume">
+      <output id="volOut" for="volSlider">80%</output>
+    </div>
+    <div class="ttrow">
+      <select id="soundSel" aria-label="Alert sound">
+        <option value="beep">Beep</option><option value="chime">Chime</option>
+        <option value="bell">Bell</option><option value="alarm">Alarm</option>
+      </select>
+      <select id="repSel" aria-label="Number of repeats"></select>
+      <button id="testBtn" class="chip">Test</button>
+    </div>
+  </div>
+</section>
+
+<section id="showWin">
+  <h2>Run of show</h2>
+  <p class="hint">List your segments in order. <strong>Next</strong> loads and starts the following one. The times show when each segment would end if they run back to back. Duration can be minutes (10), mm:ss (10:30) or h:mm:ss (1:05:00).</p>
+  <div id="showList"></div>
+  <div class="row" style="justify-content:flex-start">
+    <button id="segAdd">Add segment</button>
+    <button id="segPrev">&#9664; Prev</button>
+    <button id="segNext" class="primary">Next &#9654;</button>
+    <button id="segAuto" aria-pressed="false" title="When a segment reaches zero, start the next one right away">Auto-start next: Off</button>
+  </div>
+  <div id="showFoot"></div>
+</section>
+
+<section id="presetsWin">
+  <h2>Duration buttons</h2>
+  <p class="hint">Minutes, from 1 to 999. Up to 16 buttons; they are shown in order from shortest to longest.</p>
+  <div id="presetList"></div>
+  <div class="row" style="justify-content:flex-start">
+    <button id="pAdd">Add</button>
+    <button id="pReset" class="chip">Reset to defaults</button>
+  </div>
+</section>
+
+<section id="help">
+  <h2>Remote control</h2>
+  <p>While this app is open, other programs on this computer can control the timer by opening web addresses. Bitfocus Companion is the main example. No internet is needed.</p>
+  <p class="state" id="helpState"></p>
+
+  <h3>Set it up in Bitfocus Companion</h3>
+  <ol>
+    <li><strong>With the Clock &amp; Timer module:</strong> add the "Clock &amp; Timer app" connection and keep the default address and port. Then drag buttons in from Presets.</li>
+    <li><strong>Without the module:</strong> add Companion's generic HTTP connection (search for "HTTP" when adding a connection). On a button, add a press action from it, choose GET, and paste one of the addresses below.</li>
+  </ol>
+
+  <h3>Commands</h3>
+  <table id="cmdTable"></table>
+  <p>Set duration only works while the timer is not running. To change it on a running timer, send reset first, then set. If time travel can't be turned on (for example the end time has passed), the timer stays at normal speed and the reply says why.</p>
+
+  <h3>Reading the timer</h3>
+  <table id="readTable"></table>
+
+  <h3>Changing the address</h3>
+  <p>The app listens on this computer only, on port 8787. To use another port, or to let Companion on a different computer connect, start the app from a terminal with these variables set: <code>CLOCK_TIMER_PORT=9000</code> for the port, and <code>CLOCK_TIMER_HOST=0.0.0.0</code> to accept connections from your network. On a Mac, for example: <code>CLOCK_TIMER_PORT=9000 "/Applications/Clock &amp; Timer.app/Contents/MacOS/Clock &amp; Timer"</code></p>
+  <p>Allowing your network means anyone on it could control the timer, so only do that on a network you trust.</p>
+
+  <h3>Safety</h3>
+  <p>The address only answers programs, not web pages in a browser, so a website can't press your timer buttons.</p>
+</section>
+
+<section id="colors">
+  <h2>Timer colors</h2>
+  <p class="hint">Pick a color for the timer to switch to once the time left drops to a set point. When several rules match, the one with the smallest time wins. Above every rule, the timer keeps its normal color.</p>
+  <div id="ruleList"></div>
+  <div class="row" style="justify-content:flex-start">
+    <button class="primary" id="addRule">Add rule</button>
+    <button id="resetRules">Restore defaults</button>
+  </div>
+</section>
+
+<script src="engine.js"></script>
+<script>
+(function () {
+  const $ = (s) => document.querySelector(s);
+  const two = (n) => String(n).padStart(2, '0');
+  const view = new URLSearchParams(location.search).get('view') || 'launcher';
+  document.body.dataset.view = view;
+
+  // Scale big digits to fill the window (width and height), at any window size
+  function fit(el, heightFrac) {
+    const availW = el.parentElement.clientWidth - 32;
+    const availH = window.innerHeight * heightFrac;
+    el.style.fontSize = '100px';
+    const w = el.offsetWidth || 1;
+    el.style.fontSize = Math.max(16, Math.floor(Math.min(100 * availW / w, availH))) + 'px';
+  }
+  function refit() {
+    if (view === 'display') {
+      if (document.body.dataset.face === 'clock') {
+        fit($('#dispClockTime'), 0.5);
+        $('#dispClockDate').style.fontSize = Math.max(12, parseFloat($('#dispClockTime').style.fontSize) * 0.2) + 'px';
+      } else fit($('#dispTime'), 0.62);
+    }
+    if (view === 'clock') {
+      fit($('#clockTime'), 0.5);
+      $('#clockDate').style.fontSize = Math.max(12, parseFloat($('#clockTime').style.fontSize) * 0.2) + 'px';
+    }
+  }
+  let fitLen = -1;
+  function refitIfLenChanged(len) { if (len !== fitLen) { fitLen = len; refit(); } }
+  window.addEventListener('resize', refit);
+
+  // ---- Launcher and window controls
+  $('#newClock').onclick = () => window.api.open('clock');
+  $('#newDisplay').onclick = () => window.api.open('display');
+  $('#newControls').onclick = () => window.api.open('controls');
+  $('#newColors').onclick = () => window.api.open('colors');
+  $('#newHelp').onclick = () => window.api.open('help');
+  $('#openColors').onclick = () => window.api.open('colors');
+  $('#openAudio').onclick = () => window.api.open('audio');
+  $('#openShow').onclick = () => window.api.open('show');
+  if (view === 'launcher') {
+    window.api.apiInfo().then((a) => {
+      const where = (a.host === '0.0.0.0' ? 'http://<this computer\u2019s IP>' : 'http://' + a.host) + ':' + a.port;
+      $('#apiNote').textContent = a.ok
+        ? 'Remote control (Companion, scripts) is on at ' + where + '.'
+        : 'Remote control is off: ' + a.error + '.';
+    });
+  }
+  $('#x').onclick = () => window.api.close();
+  $('#pin').onclick = async () => {
+    const on = await window.api.togglePin();
+    $('#pin').setAttribute('aria-pressed', on);
+  };
+
+  // ---- Clock (the Clock window, and the clock face of the Timer display)
+  const days = ['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'];
+  const months = ['January','February','March','April','May','June','July','August','September','October','November','December'];
+  let h24 = false;
+  function drawClockInto(timeEl, dateEl) {
+    const d = new Date();
+    const h = h24 ? two(d.getHours()) : (d.getHours() % 12 || 12);
+    const text = h + ':' + two(d.getMinutes()) + ':' + two(d.getSeconds()) + (h24 ? '' : (d.getHours() < 12 ? ' AM' : ' PM'));
+    timeEl.textContent = text;
+    dateEl.textContent = days[d.getDay()] + ', ' + months[d.getMonth()] + ' ' + d.getDate() + ', ' + d.getFullYear();
+    return text;
+  }
+  if (view === 'clock') {
+    const draw = () => {
+      const t = drawClockInto($('#clockTime'), $('#clockDate'));
+      document.title = t;
+      refitIfLenChanged(t.length);
+    };
+    $('#fmt').onclick = () => { h24 = !h24; draw(); };
+    draw();
+    setInterval(draw, 250);
+  }
+
+  // ---- Timer display and controls (state lives in the main process)
+  if (['display', 'controls', 'audio', 'show', 'presets'].includes(view)) {
+    let rules = [];
+    let S = { state: 'idle', total: 300000, remaining: 300000, speed: 1.5, travel: false,
+      mode: 'speed', tod: null, targetAt: 0, notice: '', display: 'closed', face: 'timer', presets: [1, 5, 10, 15, 30, 45, 60, 75, 90, 120], show: { segments: [], index: -1, auto: false }, doneAt: 0, overtimeDisplay: true, endOnDisplay: true, audio: { muted: false, volume: 80, sound: 'beep', repeats: 3 } };
+    let ac = null;
+
+    const fmt = (ms) => {
+      const s = Math.ceil(ms / 1000), h = Math.floor(s / 3600), m = Math.floor(s % 3600 / 60);
+      return (h ? h + ':' + two(m) : two(m)) + ':' + two(s % 60);
+    };
+
+    const pr = $('#presets');
+    let presetSig = '';
+    function buildPresetChips() {
+      const sig = JSON.stringify(S.presets);
+      if (sig === presetSig) return;
+      presetSig = sig;
+      pr.querySelectorAll('.pchip').forEach((b) => b.remove());
+      S.presets.forEach((m) => {
+        const b = document.createElement('button');
+        b.className = 'chip pchip'; b.textContent = m + ' min';
+        b.dataset.ms = m * 60000;
+        b.onclick = () => window.api.timerCmd('set', m * 60000);
+        pr.insertBefore(b, custom);
+      });
+    }
+    const custom = document.createElement('input');
+    custom.type = 'number'; custom.min = 1; custom.max = 999; custom.placeholder = 'min';
+    custom.setAttribute('aria-label', 'Custom minutes');
+    custom.onchange = () => {
+      const v = parseInt(custom.value, 10);
+      if (v > 0) window.api.timerCmd('set', v * 60000);
+    };
+    pr.appendChild(custom);
+    const editChip = document.createElement('button');
+    editChip.className = 'chip'; editChip.id = 'editPresets'; editChip.textContent = 'Edit\u2026';
+    editChip.title = 'Change which duration buttons are shown';
+    editChip.onclick = () => window.api.open('presets');
+    pr.appendChild(editChip);
+
+    const slider = $('#ttSlider'), ttBtn = $('#ttBtn'), ttOut = $('#ttOut');
+    const times = '\u00d7';
+    slider.oninput = () => {
+      ttOut.textContent = (+slider.value).toFixed(2).replace(/0$/, '') + times;
+      window.api.timerCmd('speed', +slider.value);
+    };
+    ttBtn.onclick = () => window.api.timerCmd('travel', !S.travel);
+
+    const endIn = $('#ttEnd');
+    $('#modeSpeed').onclick = () => window.api.timerCmd('mode', 'speed');
+    $('#modeEnd').onclick = () => window.api.timerCmd('mode', 'target');
+    endIn.onchange = () => {
+      const p = endIn.value.split(':').map((x) => parseInt(x, 10));
+      window.api.timerCmd('tod', endIn.value ? p[0] * 3600 + p[1] * 60 + (p[2] || 0) : null);
+    };
+
+    const repSel = $('#repSel');
+    for (let n = 1; n <= 10; n++) { const o = document.createElement('option'); o.value = n; o.textContent = n + (n === 1 ? ' time' : ' times'); repSel.appendChild(o); }
+    const setAudio = (patch) => window.api.timerCmd('audio', patch);
+    $('#muteBtn').onclick = () => setAudio({ muted: !(S.audio && S.audio.muted) });
+    $('#volSlider').oninput = () => { $('#volOut').textContent = $('#volSlider').value + '%'; setAudio({ volume: +$('#volSlider').value }); };
+    $('#soundSel').onchange = () => { setAudio({ sound: $('#soundSel').value }); setTimeout(() => window.api.timerCmd('test'), 80); };
+    repSel.onchange = () => setAudio({ repeats: +repSel.value });
+    $('#testBtn').onclick = () => window.api.timerCmd('test');
+    $('#dispToggle').onclick = () => window.api.timerCmd('display', 'toggle');
+    $('#minus1').onclick = () => window.api.timerCmd('adjust', -60000);
+    $('#plus1').onclick = () => window.api.timerCmd('adjust', 60000);
+    $('#untilGo').onclick = () => {
+      const v = $('#untilIn').value;
+      if (!v) { $('#untilIn').focus(); return; }
+      const p = v.split(':').map((x) => parseInt(x, 10));
+      window.api.timerCmd('until', p[0] * 3600 + p[1] * 60 + (p[2] || 0));
+    };
+    $('#endToggle').onclick = () => window.api.timerCmd('endshow', 'toggle');
+    $('#overToggle').onclick = () => window.api.timerCmd('overtime', 'toggle');
+    $('#faceToggle').onclick = () => window.api.timerCmd('face', 'toggle');
+    $('#face').onclick = () => window.api.timerCmd('face', 'toggle');
+    const onClockFace = () => view === 'display' && S.face === 'clock';
+    function drawFace() {
+      if (view !== 'display') return;
+      const clock = onClockFace();
+      if (document.body.dataset.face !== (clock ? 'clock' : 'timer')) {
+        document.body.dataset.face = clock ? 'clock' : 'timer';
+        fitLen = -1;
+        refit();
+      }
+      if (clock) refitIfLenChanged(1000 + drawClockInto($('#dispClockTime'), $('#dispClockDate')).length);
+    }
+    if (view === 'display') { $('#fmt').onclick = () => { h24 = !h24; drawFace(); }; setInterval(drawFace, 250); }
+    $('#go').onclick = () => window.api.timerCmd(S.state === 'running' ? 'pause' : 'start');
+    $('#reset').onclick = () => window.api.timerCmd('reset');
+
+    function render() {
+      const done = S.state === 'done';
+      const text = done ? '00:00' : fmt(S.remaining);
+      // Overtime: how long ago the timer hit zero (counts up)
+      const overSecs = done && S.doneAt ? Math.max(0, Math.floor((Date.now() - S.doneAt) / 1000)) : 0;
+      const overText = '+' + fmt(overSecs * 1000);
+      const dispText = done && S.overtimeDisplay ? overText : text;
+      $('#dispTime').textContent = dispText;
+      if (!onClockFace()) refitIfLenChanged(dispText.length);
+      $('#ctlTime').textContent = text;
+      $('#ctlOver').textContent = 'Overtime ' + overText;
+      $('#ctlOver').classList.toggle('on', done);
+      $('#overToggle').textContent = 'Display overtime: ' + (S.overtimeDisplay ? 'On' : 'Off');
+      $('#overToggle').setAttribute('aria-pressed', !!S.overtimeDisplay);
+      $('#dispFill').style.width = (done ? 0 : S.remaining / S.total * 100) + '%';
+      const secsLeft = Math.ceil(S.remaining / 1000);
+      let ruleColor = '';
+      if (!done) {
+        let best = null;
+        for (const r of rules) if (secsLeft <= r.at && (!best || r.at < best.at)) best = r;
+        if (best) ruleColor = best.color;
+      }
+      $('#dispTime').style.color = ruleColor;
+      $('#ctlTime').style.color = ruleColor;
+      $('#dispFill').style.background = ruleColor;
+      $('#go').textContent = S.state === 'running' ? 'Pause' : S.state === 'paused' ? 'Resume' : done ? 'Restart' : 'Start';
+      $('#reset').disabled = S.state === 'idle';
+      document.body.classList.toggle('done', done);
+      const locked = S.state === 'running' || S.state === 'paused';
+      buildPresetChips();
+      pr.querySelectorAll('.pchip').forEach((b) => { b.disabled = locked; b.classList.toggle('on', +b.dataset.ms === S.total); });
+      custom.disabled = locked;
+      if (document.activeElement !== slider) slider.value = S.speed;
+      ttOut.textContent = (+S.speed).toFixed(2).replace(/0$/, '') + times;
+      ttBtn.textContent = 'Time travel: ' + (S.travel ? 'On' : 'Off');
+      $('#dispToggle').textContent = S.display === 'shown' ? 'Hide display' : 'Show display';
+      const faceLabel = S.face === 'clock' ? 'Show timer' : 'Show clock';
+      $('#faceToggle').textContent = faceLabel;
+      $('#face').textContent = faceLabel;
+      drawFace();
+      const au = S.audio || { muted: false, volume: 80, sound: 'beep', repeats: 3 };
+      $('#muteBtn').textContent = 'Sound: ' + (au.muted ? 'Off' : 'On');
+      $('#muteBtn').setAttribute('aria-pressed', au.muted);
+      $('#audio').classList.toggle('off', au.muted);
+      if (document.activeElement !== $('#volSlider')) $('#volSlider').value = au.volume;
+      $('#volOut').textContent = au.volume + '%';
+      $('#soundSel').value = au.sound;
+      repSel.value = au.repeats;
+      $('#testBtn').disabled = au.muted;
+      ttBtn.setAttribute('aria-pressed', S.travel);
+      $('#tt').classList.toggle('off', !S.travel);
+      const fx = (v) => (+v).toFixed(2).replace(/0$/, '') + times;
+      const clockAbs = (t) => new Date(t).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit', second: '2-digit' });
+      const clockAt = (ms) => clockAbs(Date.now() + ms);
+      const tgtMode = S.mode === 'target';
+      $('#modeSpeed').classList.toggle('on', !tgtMode);
+      $('#modeEnd').classList.toggle('on', tgtMode);
+      $('#ttSpeedRow').style.display = tgtMode ? 'none' : 'flex';
+      $('#ttEndRow').style.display = tgtMode ? 'flex' : 'none';
+      if (document.activeElement !== endIn) {
+        endIn.value = S.tod == null ? '' : two(Math.floor(S.tod / 3600)) + ':' + two(Math.floor(S.tod % 3600 / 60)) + ':' + two(S.tod % 60);
+      }
+
+      const base = (S.state === 'idle' || S.state === 'done') ? S.total : S.remaining;
+      const nowMs = Date.now();
+      let eff = S.travel ? S.speed : 1;
+      let endMs = null;
+      if (S.travel && tgtMode) {
+        const left = S.targetAt - nowMs;
+        if (left > 0) { eff = base / left; endMs = left; } else { eff = 1; }
+      }
+      if (endMs === null) endMs = base / eff;
+
+      let info = '';
+      if (S.state === 'running') {
+        info = (S.travel ? fx(eff) + ' · ' : '') + 'ends at ' + clockAt(endMs) + ' (in ' + fmt(endMs) + ')';
+      } else if (S.state === 'idle') {
+        info = 'If started now: ends at ' + clockAt(endMs);
+      } else if (S.state === 'paused') {
+        info = 'Paused';
+      }
+      $('#real').textContent = info;
+      const dEnd = $('#dispEnd');
+      dEnd.classList.toggle('off', !S.endOnDisplay);
+      dEnd.textContent = S.state === 'running'
+        ? 'ends at ' + new Date(Date.now() + endMs).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })
+        : '\u00a0';
+      $('#endToggle').textContent = 'Display ends-at: ' + (S.endOnDisplay ? 'On' : 'Off');
+      $('#endToggle').setAttribute('aria-pressed', !!S.endOnDisplay);
+      const lockedAdj = S.state === 'done';
+      $('#minus1').disabled = $('#plus1').disabled = lockedAdj;
+      $('#untilGo').disabled = S.state === 'running' || S.state === 'paused';
+      $('#untilIn').disabled = S.state === 'running' || S.state === 'paused';
+
+      // Preview: what time travel would do, before it is switched on
+      let prev = '';
+      if (!S.travel && S.state !== 'done') {
+        if (!tgtMode) {
+          if (S.speed !== 1) {
+            const fastMs = base / S.speed, diff = base - fastMs;
+            prev = 'Preview at ' + fx(S.speed) + ': ends at ' + clockAt(fastMs)
+              + ' (' + (diff >= 0 ? 'saves ' : 'adds ') + fmt(Math.abs(diff)) + ')';
+          }
+        } else if (S.tod == null) {
+          prev = 'Pick an end time to preview the speed it needs.';
+        } else {
+          const d = new Date(nowMs);
+          d.setHours(Math.floor(S.tod / 3600), Math.floor(S.tod % 3600 / 60), S.tod % 60, 0);
+          if (d.getTime() <= nowMs + 500) d.setDate(d.getDate() + 1);
+          const left = d.getTime() - nowMs, need = base / left, diff = base - left;
+          prev = 'Preview: ending at ' + clockAbs(d.getTime()) + ' needs ' + fx(need)
+            + (need >= 0.1 && need <= 100
+              ? ' (' + (diff >= 0 ? 'saves ' : 'adds ') + fmt(Math.abs(diff)) + ')'
+              : ', outside the 0.1× to 100× limit');
+        }
+      }
+      $('#preview').textContent = prev;
+      $('#notice').textContent = S.notice || '';
+      updateShow(endMs);
+      if (view === 'presets') buildPresetEditor();
+      document.title = view === 'audio' ? 'Audio' : onClockFace() ? 'Clock' : done ? "Time's up!" : (S.state === 'idle' ? 'Timer' : text);
+    }
+
+    // One sound pattern: [start offset, frequency, length, wave type, relative volume]
+    const PATTERNS = {
+      beep:  [[0, 880, 0.35, 'sine', 1]],
+      chime: [[0, 1046.5, 0.5, 'sine', 0.9], [0.18, 1318.5, 0.6, 'sine', 0.9]],
+      bell:  [[0, 660, 1.1, 'triangle', 1], [0, 1320, 0.7, 'sine', 0.35]],
+      alarm: [[0, 740, 0.16, 'square', 0.55], [0.2, 988, 0.16, 'square', 0.55]],
+    };
+    const GAP = { beep: 0.45, chime: 0.9, bell: 1.3, alarm: 0.55 };
+    // ---- Run of show (list window) and the Next/Prev strip in the controls window
+    const two2 = two;
+    const parseDur = (txt) => {
+      txt = String(txt).trim();
+      if (!/^\d+(:\d{1,2}){0,2}$/.test(txt)) return null;
+      const p = txt.split(':').map(Number);
+      const s = p.length === 1 ? p[0] * 60 : p.length === 2 ? p[0] * 60 + p[1] : p[0] * 3600 + p[1] * 60 + p[2];
+      return s >= 1 && s <= 359999 ? s : null;
+    };
+    const fmtDur = (s) => {
+      const hh = Math.floor(s / 3600), mm = Math.floor(s % 3600 / 60), ss = s % 60;
+      return hh ? hh + ':' + two2(mm) + ':' + two2(ss) : two2(mm) + ':' + two2(ss);
+    };
+    const hm = (t) => new Date(t).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
+    const sendShow = (segments, index) => window.api.timerCmd('show-set', { segments, index });
+    const list = $('#showList');
+    let showSig = '';
+
+    function buildShowList() {
+      const segs = S.show.segments;
+      const sig = JSON.stringify(segs) + '|' + S.show.index;
+      if (sig === showSig) return;
+      showSig = sig;
+      // If the rows on screen already show these values (the change came from typing here), keep them as they are
+      const rowEls = [...list.querySelectorAll('.seg')];
+      if (rowEls.length === segs.length && rowEls.every((r, i) => r.querySelector('.sn').value.trim() === segs[i].name && +r.dataset.secs === segs[i].secs)) return;
+      const ae = document.activeElement;
+      const keep = ae && list.contains(ae) ? { i: ae.closest('.seg').dataset.i, c: ae.className.split(' ')[0] } : null;
+      list.textContent = '';
+      if (!segs.length) { const e = document.createElement('p'); e.className = 'empty'; e.textContent = 'No segments yet. Add one to get started.'; list.appendChild(e); }
+      const rows = () => [...list.querySelectorAll('.seg')].map((r) => ({ name: r.querySelector('.sn').value.trim(), secs: +r.dataset.secs }));
+      segs.forEach((sg, i) => {
+        const r = document.createElement('div');
+        r.className = 'seg'; r.dataset.i = i; r.dataset.secs = sg.secs;
+        const mk = (tag, cls, txt) => { const e = document.createElement(tag); e.className = cls; if (txt) e.textContent = txt; return e; };
+        const nm = mk('input', 'sn'); nm.maxLength = 40; nm.value = sg.name; nm.placeholder = 'Segment ' + (i + 1); nm.setAttribute('aria-label', 'Segment name');
+        const du = mk('input', 'sd'); du.value = fmtDur(sg.secs); du.setAttribute('aria-label', 'Duration');
+        const bx = mk('span', 'sb');
+        const up = mk('button', 'chip up', '\u25B2'), dn = mk('button', 'chip dn', '\u25BC'), go = mk('button', 'chip go', 'Start'), rm = mk('button', 'chip rm', '\u2715');
+        up.title = 'Move up'; dn.title = 'Move down'; go.title = 'Start this segment now'; rm.title = 'Remove'; rm.setAttribute('aria-label', 'Remove segment');
+        up.disabled = i === 0; dn.disabled = i === segs.length - 1;
+        nm.onchange = () => { const a = rows(); sendShow(a, S.show.index); };
+        du.onchange = () => {
+          const s = parseDur(du.value);
+          if (s === null) { du.value = fmtDur(+r.dataset.secs); return; }
+          r.dataset.secs = s; sendShow(rows(), S.show.index);
+        };
+        const swap = (j) => { const a = rows(); [a[i], a[j]] = [a[j], a[i]]; const k = S.show.index; sendShow(a, k === i ? j : k === j ? i : k); };
+        up.onclick = () => swap(i - 1); dn.onclick = () => swap(i + 1);
+        go.onclick = () => window.api.timerCmd('show-go', i);
+        rm.onclick = () => { const a = rows(); a.splice(i, 1); const k = S.show.index; sendShow(a, k === i ? -1 : k > i ? k - 1 : k); };
+        bx.append(up, dn, go, rm);
+        r.append(mk('span', 'si', String(i + 1)), nm, du, mk('span', 'se'), bx);
+        list.appendChild(r);
+      });
+      if (keep) { const t = list.querySelector('.seg[data-i="' + keep.i + '"] .' + keep.c); if (t) t.focus(); }
+    }
+
+    function updateShow(endMs) {
+      const segs = S.show.segments, idx = S.show.index, now = Date.now();
+      const label = $('#segLabel'), bar = $('#segBar');
+      bar.classList.toggle('on', segs.length > 0);
+      const nm = (i) => segs[i].name.trim() || 'Segment ' + (i + 1);
+      if (segs.length) {
+        label.textContent = idx < 0
+          ? 'Show ready \u00b7 first: ' + nm(0)
+          : 'Segment ' + (idx + 1) + '/' + segs.length + ' \u00b7 ' + nm(idx) + (idx + 1 < segs.length ? ' \u00b7 next: ' + nm(idx + 1) : ' \u00b7 last');
+        label.title = label.textContent;
+      }
+      $('#ctlNext').disabled = idx + 1 >= segs.length;
+      $('#ctlPrev').disabled = idx <= 0;
+      if (view !== 'show') return;
+      buildShowList();
+      $('#segNext').disabled = idx + 1 >= segs.length;
+      $('#segPrev').disabled = idx <= 0;
+      $('#segAuto').textContent = 'Auto-start next: ' + (S.show.auto ? 'On' : 'Off');
+      $('#segAuto').setAttribute('aria-pressed', !!S.show.auto);
+      let cursor = now, last = null;
+      list.querySelectorAll('.seg').forEach((r, i) => {
+        const past = idx >= 0 && i < idx;
+        r.classList.toggle('past', past);
+        r.classList.toggle('cur', i === idx);
+        const se = r.querySelector('.se');
+        if (past) { se.textContent = '\u2713 done'; return; }
+        let end;
+        if (i === idx) {
+          end = S.state === 'done' ? (S.doneAt || now) : now + endMs;
+          cursor = S.state === 'done' ? now : end;
+        } else { end = cursor + segs[i].secs * 1000; cursor = end; }
+        last = end;
+        se.textContent = (i === idx && S.state === 'done' ? 'finished ' : 'ends ') + hm(end);
+      });
+      const total = segs.reduce((a, s) => a + s.secs, 0);
+      $('#showFoot').textContent = segs.length
+        ? segs.length + ' segment' + (segs.length === 1 ? '' : 's') + ' \u00b7 total ' + fmtDur(total) + (last ? ' \u00b7 show ends about ' + hm(last) : '')
+        : '';
+    }
+
+    $('#segAdd').onclick = () => {
+      if (S.show.segments.length >= 30) return;
+      const a = S.show.segments.map((s) => ({ name: s.name, secs: s.secs }));
+      a.push({ name: '', secs: 300 });
+      sendShow(a, S.show.index);
+    };
+    $('#segNext').onclick = $('#ctlNext').onclick = () => window.api.timerCmd('show-next');
+    $('#segPrev').onclick = $('#ctlPrev').onclick = () => window.api.timerCmd('show-prev');
+    $('#segAuto').onclick = () => window.api.timerCmd('show-auto', 'toggle');
+
+    // ---- Editable duration buttons
+    const plist = $('#presetList');
+    let pSig = '';
+    function buildPresetEditor() {
+      const sig = JSON.stringify(S.presets);
+      if (sig === pSig) return;
+      pSig = sig;
+      plist.textContent = '';
+      const send = (arr) => window.api.timerCmd('presets', arr);
+      S.presets.forEach((m, i) => {
+        const r = document.createElement('div'); r.className = 'prow';
+        const inp = document.createElement('input');
+        inp.type = 'number'; inp.min = 1; inp.max = 999; inp.step = 1; inp.value = m; inp.setAttribute('aria-label', 'Minutes');
+        inp.onchange = () => {
+          const v = parseInt(inp.value, 10);
+          if (!(v >= 1 && v <= 999)) { pSig = ''; buildPresetEditor(); return; }
+          const a = S.presets.slice(); a[i] = v; send(a);
+        };
+        const u = document.createElement('span'); u.textContent = 'min'; u.style.color = 'var(--muted)';
+        const rm = document.createElement('button'); rm.className = 'chip'; rm.textContent = '\u2715'; rm.setAttribute('aria-label', 'Remove ' + m + ' minutes');
+        rm.disabled = S.presets.length <= 1;
+        rm.onclick = () => send(S.presets.filter((_, j) => j !== i));
+        r.append(inp, u, rm); plist.appendChild(r);
+      });
+      $('#pAdd').disabled = S.presets.length >= 16;
+    }
+    $('#pAdd').onclick = () => {
+      let n = Math.max(...S.presets) + 5;
+      while (S.presets.includes(n) && n < 999) n++;
+      if (n > 999) n = [2, 3, 4, 6, 7, 8, 20, 25, 35, 40].find((x) => !S.presets.includes(x)) || 1;
+      window.api.timerCmd('presets', S.presets.concat(n));
+    };
+    $('#pReset').onclick = () => window.api.timerCmd('presets', 'reset');
+
+    function beep() {
+      const a = S.audio || { muted: false, volume: 80, sound: 'beep', repeats: 3 };
+      if (a.muted || a.volume <= 0) return;
+      ac = ac || new (window.AudioContext || window.webkitAudioContext)();
+      const peak = 0.6 * a.volume / 100;
+      for (let i = 0; i < a.repeats; i++) {
+        for (const [off, freq, len, wave, rel] of PATTERNS[a.sound] || PATTERNS.beep) {
+          const o = ac.createOscillator(), g = ac.createGain(), t = ac.currentTime + i * (GAP[a.sound] || 0.45) + off;
+          o.type = wave; o.frequency.value = freq; o.connect(g); g.connect(ac.destination);
+          g.gain.setValueAtTime(Math.max(0.0002, peak * rel), t);
+          g.gain.exponentialRampToValueAtTime(0.0001, t + len);
+          o.start(t); o.stop(t + len + 0.02);
+        }
+      }
+    }
+
+    window.api.onTimer((s) => { S = s; render(); });
+    window.api.onDone(beep);
+    window.api.onRules((r) => { rules = r; render(); });
+    window.api.rulesGet().then((r) => { rules = r; render(); });
+    setInterval(render, 250);
+    window.api.timerGet().then((s) => { S = s; render(); });
+    render();
+  }
+
+  // ---- Help window: remote-control instructions with the real address filled in
+  if (view === 'help') {
+    const commands = [
+      ['Start or resume', ['/start']],
+      ['Pause', ['/pause']],
+      ['Start or pause (one button)', ['/toggle']],
+      ['Reset', ['/reset']],
+      ['Set the duration', ['/set?minutes=10', '/set?hours=1&minutes=30', '/set?seconds=45']],
+      ['Time travel on, off, toggle', ['/travel/on', '/travel/off', '/travel/toggle']],
+      ['Time travel speed (0.5 to 3)', ['/speed?value=1.25']],
+      ['Speed mode or end-time mode', ['/mode/speed', '/mode/end']],
+      ['Set the end time', ['/endtime?time=12:00', '/endtime?time=1:05pm', '/endtime?time=13:30:15']],
+      ['Clear the end time', ['/endtime/clear']],
+      ['Show, hide or toggle the Timer display window', ['/display/show', '/display/hide', '/display/toggle']],
+      ['Timer display shows the timer or the clock', ['/face/timer', '/face/clock', '/face/toggle']],
+    ];
+    const reads = [
+      ['Time left, like 12:34', ['/remaining']],
+      ['State: idle, running, paused or done', ['/state']],
+      ['Real clock time it will finish', ['/endsat']],
+      ['Current color rule, like #ffb84d', ['/color']],
+      ['Everything, as JSON', ['/status']],
+    ];
+    const fill = (table, rows, base) => {
+      table.textContent = '';
+      rows.forEach(([label, paths]) => {
+        const tr = document.createElement('tr');
+        const a = document.createElement('td'); a.textContent = label;
+        const b = document.createElement('td');
+        paths.forEach((p) => { const c = document.createElement('code'); c.textContent = base + p; b.appendChild(c); });
+        tr.append(a, b);
+        table.appendChild(tr);
+      });
+    };
+    const draw = (a) => {
+      const base = (a.host === '0.0.0.0' ? 'http://<this computer’s IP>' : 'http://' + a.host) + ':' + a.port;
+      $('#helpState').textContent = a.ok ? 'Remote control is on. Address: ' + base : 'Remote control is off: ' + a.error + '.';
+      fill($('#cmdTable'), commands, base);
+      fill($('#readTable'), reads, base);
+    };
+    draw({ ok: true, host: '127.0.0.1', port: 8787, error: '' });
+    window.api.apiInfo().then(draw);
+  }
+
+  // ---- Colors window: edit the color rules
+  if (view === 'colors') {
+    const list = $('#ruleList');
+    let rules = [];
+    const save = () => window.api.rulesSet(rules);
+
+    function build() {
+      list.textContent = '';
+      if (!rules.length) {
+        const e = document.createElement('p');
+        e.className = 'empty';
+        e.textContent = 'No rules yet. Add one to change the timer color as time runs down.';
+        list.appendChild(e);
+      }
+      rules.forEach((r, i) => {
+        const row = document.createElement('div');
+        row.className = 'rule';
+        const lab = document.createElement('span'); lab.textContent = 'At or below';
+        const mm = document.createElement('input');
+        mm.type = 'number'; mm.min = 0; mm.max = 999; mm.value = Math.floor(r.at / 60);
+        mm.setAttribute('aria-label', 'Minutes');
+        const colon = document.createElement('span'); colon.textContent = ':';
+        const ss = document.createElement('input');
+        ss.type = 'number'; ss.min = 0; ss.max = 59; ss.value = two(r.at % 60);
+        ss.setAttribute('aria-label', 'Seconds');
+        const col = document.createElement('input');
+        col.type = 'color'; col.value = r.color;
+        col.setAttribute('aria-label', 'Color');
+        const del = document.createElement('button');
+        del.className = 'del'; del.textContent = '✕'; del.setAttribute('aria-label', 'Remove rule');
+
+        const commit = () => {
+          const at = (parseInt(mm.value, 10) || 0) * 60 + (parseInt(ss.value, 10) || 0);
+          if (at < 1) return;
+          rules[i] = { at, color: col.value };
+          save();
+        };
+        mm.onchange = commit; ss.onchange = commit; col.oninput = commit;
+        del.onclick = () => { rules.splice(i, 1); save(); build(); };
+
+        row.append(lab, mm, colon, ss, col, del);
+        list.appendChild(row);
+      });
+      $('#addRule').disabled = rules.length >= 12;
+    }
+
+    $('#addRule').onclick = () => { rules.push({ at: 30, color: '#ff6b5e' }); save(); build(); };
+    $('#resetRules').onclick = async () => { rules = await window.api.rulesReset(); build(); };
+    window.api.onRules((r) => { if (JSON.stringify(r) !== JSON.stringify(rules)) { rules = r; build(); } });
+    window.api.rulesGet().then((r) => { rules = r; build(); });
+    build();
+  }
+})();
+</script>
+</body>
+</html>

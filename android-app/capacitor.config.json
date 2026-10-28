@@ -1,0 +1,9 @@
+{
+  "appId": "com.clocktimer.app",
+  "appName": "Clock & Timer",
+  "webDir": "www",
+  "backgroundColor": "#12161c",
+  "android": {
+    "allowMixedContent": false
+  }
+}

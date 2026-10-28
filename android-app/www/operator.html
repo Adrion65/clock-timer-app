@@ -1,0 +1,365 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no">
+<meta name="color-scheme" content="dark">
+<title>Clock &amp; Timer</title>
+<style>
+  :root {
+    --bg: #12161c; --surface: #1b222b; --line: #2a3441;
+    --text: #e8edf2; --muted: #8a97a6; --accent: #5fb3d9; --alert: #ff6b5e; --amber: #ffb84d;
+    --on-accent: #0b1218;
+    --btn-h: clamp(56px, 12.5vh, 104px);
+    --chip-h: clamp(44px, 8.5vh, 68px);
+  }
+  * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+  html, body { height: 100%; margin: 0; overflow: hidden; background: var(--bg); color: var(--text);
+    font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; user-select: none; -webkit-user-select: none; }
+  body.done { animation: flash .7s ease-in-out 8; }
+  @keyframes flash { 50% { background: color-mix(in srgb, var(--alert) 45%, var(--bg)); } }
+  @media (prefers-reduced-motion: reduce) { body.done { animation: none; background: color-mix(in srgb, var(--alert) 35%, var(--bg)); } }
+
+  button { font: inherit; color: var(--text); background: var(--surface); border: 1px solid var(--line); border-radius: 16px; cursor: pointer; }
+  button:disabled { opacity: .4; }
+  button:focus-visible, input:focus-visible { outline: 3px solid var(--accent); outline-offset: 2px; }
+  svg { flex: none; }
+
+  #app { height: 100%; display: flex; flex-direction: column; padding: max(10px, env(safe-area-inset-top)) clamp(16px, 3.2vw, 40px) clamp(12px, 3vh, 36px); position: relative; }
+
+  /* top bar: room name on the left, More and Lock stacked on the right */
+  #top { position: absolute; left: clamp(16px, 3.2vw, 40px); right: clamp(16px, 3.2vw, 40px); top: max(10px, env(safe-area-inset-top)); display: flex; justify-content: space-between; align-items: flex-start; pointer-events: none; z-index: 2; }
+  #top > * { pointer-events: auto; }
+  #room { display: flex; align-items: center; gap: 12px; min-height: clamp(40px, 7vh, 52px); max-width: 45vw; }
+  #dot { width: 12px; height: 12px; border-radius: 50%; background: var(--muted); flex: none; }
+  #roomName { font-size: clamp(16px, 3.2vh, 24px); font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  #lockedTag { display: none; align-items: center; gap: 6px; color: var(--muted); font-size: clamp(13px, 2.4vh, 18px); }
+  body.locked #lockedTag { display: inline-flex; }
+  #side { display: flex; flex-direction: column; gap: clamp(6px, 1.4vh, 12px); align-items: stretch; }
+  #side button { display: flex; align-items: center; justify-content: center; gap: 10px; min-height: clamp(40px, 7vh, 52px); padding: 0 clamp(14px, 2vw, 22px); border-radius: 14px; font-size: clamp(15px, 2.6vh, 20px); font-weight: 600; position: relative; overflow: hidden; }
+  body.locked #moreBtn { display: none; }
+  #lockBtn.holding::after { content: ""; position: absolute; left: 0; top: 0; bottom: 0; background: color-mix(in srgb, var(--accent) 45%, transparent); animation: hold 1.2s linear forwards; }
+  @keyframes hold { from { width: 0; } to { width: 100%; } }
+  #lockHint { position: fixed; right: clamp(16px, 3.2vw, 40px); top: clamp(60px, 13vh, 100px); background: var(--surface); border: 1px solid var(--line); border-radius: 12px; padding: 10px 14px; font-size: 16px; display: none; z-index: 3; }
+  #lockHint.on { display: block; }
+
+  /* the countdown */
+  #stage { flex: 1; min-height: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; padding: clamp(44px, 8vh, 64px) clamp(96px, 11vw, 150px) 0; text-align: center; }
+  #digits { margin: 0; font-weight: 200; line-height: 1; letter-spacing: -.03em; font-variant-numeric: tabular-nums; white-space: nowrap; display: inline-block; }
+  body.done #digits { color: var(--alert); }
+  #bar { width: min(100%, 1040px); height: clamp(8px, 2.4vh, 20px); border-radius: 999px; background: var(--line); margin-top: clamp(8px, 3vh, 30px); overflow: hidden; }
+  #fill { display: block; height: 100%; width: 100%; background: var(--accent); border-radius: 999px; }
+  body.done #bar { visibility: hidden; }
+  #info { margin-top: clamp(6px, 2vh, 22px); font-size: clamp(15px, 3.6vh, 30px); color: var(--muted); font-variant-numeric: tabular-nums; min-height: 1.3em; }
+  body.done #info { color: var(--alert); font-weight: 600; }
+  #seg { margin-top: clamp(4px, 1.2vh, 12px); display: none; align-items: center; gap: 12px; font-size: clamp(13px, 2.8vh, 22px); color: var(--muted); max-width: 100%; }
+  #seg.on { display: flex; }
+  #segText { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  #segNext { padding: 6px 16px; min-height: 40px; border-radius: 12px; font-size: clamp(14px, 2.6vh, 20px); font-weight: 600; flex: none; }
+  #presets { display: flex; flex-wrap: wrap; gap: clamp(8px, 1.8vh, 14px); justify-content: center; margin-top: clamp(8px, 3vh, 36px); }
+  #presets button { height: var(--chip-h); padding: 0 clamp(16px, 2.4vw, 30px); border-radius: 18px; font-size: clamp(16px, 3vh, 24px); font-weight: 600; }
+  #presets button.on { border: 2px solid var(--accent); }
+  body.locked #presets, body.running #presets, body.paused #presets, body.done #presets { display: none; }
+
+  /* the four big buttons */
+  #controls { display: flex; gap: clamp(10px, 2vw, 20px); justify-content: center; padding-top: clamp(8px, 2vh, 20px); }
+  #controls button { height: var(--btn-h); border-radius: clamp(16px, 3vh, 24px); font-size: clamp(18px, 3.8vh, 30px); font-weight: 600; display: flex; align-items: center; justify-content: center; gap: 12px; }
+  #minus, #plus { width: clamp(120px, 18vw, 230px); }
+  #go { width: clamp(180px, 30vw, 380px); background: var(--accent); color: var(--on-accent); border: 0; font-size: clamp(20px, 4.2vh, 34px); }
+  #reset { width: clamp(110px, 14vw, 180px); }
+  body.locked #minus, body.locked #plus { display: none; }
+
+  /* More drawer */
+  #scrim { position: fixed; inset: 0; background: rgba(0,0,0,.5); display: none; z-index: 10; }
+  #scrim.on { display: block; }
+  #drawer { position: fixed; top: 0; right: 0; bottom: 0; width: min(540px, 92vw); background: var(--surface); border-left: 1px solid var(--line); padding: max(16px, env(safe-area-inset-top)) 28px 24px; overflow-y: auto; transform: translateX(105%); transition: transform .2s ease; z-index: 11; display: flex; flex-direction: column; gap: 16px; visibility: hidden; }
+  #drawer.on { transform: none; visibility: visible; }
+  @media (prefers-reduced-motion: reduce) { #drawer { transition: none; } }
+  #drawer h2 { margin: 0; font-size: 26px; font-weight: 600; }
+  .dhead { display: flex; align-items: center; justify-content: space-between; min-height: 52px; }
+  .dhead button { width: 52px; height: 52px; border-radius: 14px; background: var(--bg); display: flex; align-items: center; justify-content: center; }
+  .tiles { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
+  .tile { min-height: clamp(76px, 13vh, 112px); background: var(--bg); text-align: left; padding: 12px 18px; display: flex; flex-direction: column; justify-content: center; gap: 4px; }
+  .tile b { font-size: clamp(17px, 2.8vh, 22px); font-weight: 600; }
+  .tile span { font-size: clamp(13px, 2.1vh, 16px); color: var(--muted); }
+  .rows { border-top: 1px solid var(--line); }
+  .rowx { display: flex; align-items: center; justify-content: space-between; gap: 14px; min-height: 64px; border-bottom: 1px solid var(--line); font-size: 20px; }
+  .rowx input[type=text] { width: 230px; max-width: 55%; height: 46px; padding: 0 12px; border-radius: 12px; border: 1px solid var(--line); background: var(--bg); color: var(--text); font: inherit; font-size: 18px; user-select: text; -webkit-user-select: text; }
+  .switch { width: 64px; height: 36px; border-radius: 999px; background: var(--line); padding: 0 4px; display: inline-flex; align-items: center; justify-content: flex-start; border: 0; flex: none; }
+  .switch i { width: 28px; height: 28px; border-radius: 50%; background: var(--muted); display: block; }
+  .switch[aria-checked="true"] { background: var(--accent); justify-content: flex-end; }
+  .switch[aria-checked="true"] i { background: var(--on-accent); }
+  .ver { color: var(--muted); font-size: 14px; text-align: center; margin-top: auto; }
+
+  /* reset confirmation */
+  #confirm { position: fixed; inset: 0; background: rgba(0,0,0,.6); display: none; align-items: center; justify-content: center; z-index: 20; padding: 20px; }
+  #confirm.on { display: flex; }
+  #confirm .box { background: var(--surface); border: 1px solid var(--line); border-radius: 24px; padding: clamp(18px, 4vh, 32px) clamp(20px, 3vw, 36px); width: min(560px, 100%); }
+  #confirm h2 { margin: 0 0 8px; font-size: clamp(22px, 4vh, 30px); font-weight: 600; }
+  #confirm p { margin: 0 0 clamp(14px, 3vh, 26px); color: var(--muted); font-size: clamp(16px, 2.8vh, 20px); line-height: 1.4; }
+  #confirm .acts { display: flex; gap: 14px; }
+  #confirm .acts button { flex: 1; height: clamp(54px, 10vh, 76px); font-size: clamp(18px, 3.2vh, 24px); font-weight: 600; border-radius: 18px; }
+  #confirmYes { background: var(--alert); color: #1a0b09; border: 0; }
+</style>
+</head>
+<body class="idle">
+<div id="app">
+  <div id="top">
+    <div id="room">
+      <span id="dot"></span>
+      <span id="roomName"></span>
+      <span id="lockedTag">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="5" y="11" width="14" height="9" rx="2"/><path d="M8 11V8a4 4 0 0 1 8 0v3"/></svg>
+        Locked
+      </span>
+    </div>
+    <div id="side">
+      <button id="moreBtn" aria-haspopup="dialog">
+        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><circle cx="5" cy="12" r="1.5"/><circle cx="12" cy="12" r="1.5"/><circle cx="19" cy="12" r="1.5"/></svg>
+        More
+      </button>
+      <button id="lockBtn">
+        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="5" y="11" width="14" height="9" rx="2"/><path d="M8 11V8a4 4 0 0 1 8 0v3"/></svg>
+        <span id="lockLabel">Lock</span>
+      </button>
+    </div>
+  </div>
+  <div id="lockHint" role="status">Press and hold to unlock</div>
+
+  <div id="stage">
+    <p id="digits" aria-live="off">10:00</p>
+    <div id="bar"><i id="fill"></i></div>
+    <div id="info" aria-live="polite"></div>
+    <div id="seg"><span id="segText"></span><button id="segNext">Next &#9654;</button></div>
+    <div id="presets"></div>
+  </div>
+
+  <div id="controls">
+    <button id="minus"><svg width="30" height="30" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" aria-hidden="true"><path d="M5 12h14"/></svg>1 min</button>
+    <button id="go"><span id="goIcon" style="display:flex"></span><span id="goLabel">Start</span></button>
+    <button id="plus"><svg width="30" height="30" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg>1 min</button>
+    <button id="reset"><svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 12a9 9 0 1 0 3-6.7"/><path d="M3 4v5h5"/></svg>Reset</button>
+  </div>
+</div>
+
+<div id="scrim"></div>
+<aside id="drawer" role="dialog" aria-modal="true" aria-label="More options">
+  <div class="dhead">
+    <h2>More</h2>
+    <button id="drawerClose" aria-label="Close"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg></button>
+  </div>
+  <div class="tiles">
+    <button class="tile" data-go="show"><b>Run of show</b><span id="tileShow">No segments yet</span></button>
+    <button class="tile" data-go="controls"><b>Time travel &amp; count down to</b><span id="tileTT">Time travel off</span></button>
+    <button class="tile" data-go="audio"><b>Sound</b><span id="tileSound">Beep · 80%</span></button>
+    <button class="tile" data-go="colors"><b>Colors</b><span>Warnings by time left</span></button>
+    <button class="tile" data-go="presets"><b>Duration buttons</b><span>Edit presets</span></button>
+    <button class="tile" data-go="controls"><b>Full controls</b><span>Every option</span></button>
+  </div>
+  <div class="rows">
+    <div class="rowx"><label for="roomIn">Room name</label><input type="text" id="roomIn" maxlength="40" placeholder="e.g. Room 4" autocomplete="off"></div>
+    <div class="rowx"><span id="endLbl">Show &ldquo;ends at&rdquo; time</span><button class="switch" id="swEnd" role="switch" aria-checked="true" aria-labelledby="endLbl"><i></i></button></div>
+    <div class="rowx"><span id="overLbl">Count up after zero</span><button class="switch" id="swOver" role="switch" aria-checked="true" aria-labelledby="overLbl"><i></i></button></div>
+  </div>
+  <div class="ver">Clock &amp; Timer for Android &middot; version 1.1</div>
+</aside>
+
+<div id="confirm" role="alertdialog" aria-modal="true" aria-labelledby="cTitle" aria-describedby="cText">
+  <div class="box">
+    <h2 id="cTitle">Reset the timer?</h2>
+    <p id="cText">This stops the countdown and puts it back to 10:00.</p>
+    <div class="acts">
+      <button id="confirmNo">Cancel</button>
+      <button id="confirmYes">Reset</button>
+    </div>
+  </div>
+</div>
+
+<script src="engine.js"></script>
+<script>
+(function () {
+  const $ = (s) => document.querySelector(s);
+  const two = (n) => String(n).padStart(2, '0');
+  const api = window.api;
+  const fmt = (ms) => {
+    const s = Math.ceil(ms / 1000), h = Math.floor(s / 3600), m = Math.floor(s % 3600 / 60);
+    return (h ? h + ':' + two(m) : two(m)) + ':' + two(s % 60);
+  };
+  const hm = (t) => new Date(t).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
+  const ICON_PAUSE = '<svg width="34" height="34" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><rect x="6" y="5" width="4" height="14" rx="1"/><rect x="14" y="5" width="4" height="14" rx="1"/></svg>';
+  const ICON_PLAY = '<svg width="34" height="34" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M7 4.5v15a1 1 0 0 0 1.5.9l12-7.5a1 1 0 0 0 0-1.8l-12-7.5A1 1 0 0 0 7 4.5z"/></svg>';
+
+  let S = { state: 'idle', total: 300000, remaining: 300000, speed: 1.5, travel: false, mode: 'speed', tod: null, targetAt: 0,
+    doneAt: 0, overtimeDisplay: true, endOnDisplay: true, presets: [1, 5, 10, 15, 30, 45, 60, 75, 90, 120],
+    show: { segments: [], index: -1, auto: false }, audio: { muted: false, volume: 80, sound: 'beep', repeats: 3 }, room: '', locked: false };
+  let rules = [];
+
+  // ---------- fit the big digits to the space that is left ----------
+  const digits = $('#digits'), stage = $('#stage');
+  let fitSig = '';
+  function fit(force) {
+    const cs = getComputedStyle(stage);
+    const availW = stage.clientWidth - parseFloat(cs.paddingLeft) - parseFloat(cs.paddingRight);
+    let other = 0;
+    for (const el of stage.children) {
+      if (el === digits || getComputedStyle(el).display === 'none') continue;
+      const m = getComputedStyle(el);
+      other += el.offsetHeight + parseFloat(m.marginTop) + parseFloat(m.marginBottom);
+    }
+    const availH = stage.clientHeight - parseFloat(cs.paddingTop) - parseFloat(cs.paddingBottom) - other;
+    const sig = [digits.textContent.length, Math.round(availW), Math.round(availH)].join('|');
+    if (!force && sig === fitSig) return;
+    fitSig = sig;
+    digits.style.fontSize = '100px';
+    const w = digits.offsetWidth || 1;
+    digits.style.fontSize = Math.max(28, Math.floor(Math.min(100 * availW / w, availH * 0.98))) + 'px';
+  }
+  window.addEventListener('resize', () => fit(true));
+
+  // ---------- drawing the screen ----------
+  function render() {
+    const now = Date.now();
+    const done = S.state === 'done';
+    const secs = Math.ceil(S.remaining / 1000);
+    const overSecs = done && S.doneAt ? Math.max(0, Math.floor((now - S.doneAt) / 1000)) : 0;
+    const text = done ? (S.overtimeDisplay ? '+' + fmt(overSecs * 1000) : '00:00') : fmt(S.remaining);
+    digits.textContent = text;
+
+    let color = '';
+    if (!done) {
+      let best = null;
+      for (const r of rules) if (secs <= r.at && (!best || r.at < best.at)) best = r;
+      if (best) color = best.color;
+    }
+    digits.style.color = color;
+    $('#fill').style.background = color;
+    $('#fill').style.width = (done ? 0 : S.total ? S.remaining / S.total * 100 : 0) + '%';
+
+    // when it will really finish (accounts for time travel, but the screen never says so)
+    const base = (S.state === 'idle' || S.state === 'done') ? S.total : S.remaining;
+    let eff = S.travel ? S.speed : 1, endMs = null;
+    if (S.travel && S.mode === 'target') {
+      const left = S.targetAt - now;
+      if (left > 0) { eff = base / left; endMs = left; } else eff = 1;
+    }
+    if (endMs === null) endMs = base / eff;
+    let info = '';
+    if (done) info = "Time’s up";
+    else if (S.state === 'paused') info = 'Paused';
+    else if (S.endOnDisplay) info = S.state === 'running' ? 'ends at ' + hm(now + endMs) : 'if started now: ends at ' + hm(now + endMs);
+    $('#info').textContent = info;
+
+    // state classes, room, lock
+    for (const c of ['idle', 'running', 'paused', 'done']) document.body.classList.toggle(c, S.state === c);
+    document.body.classList.toggle('locked', !!S.locked);
+    $('#roomName').textContent = S.room || '';
+    $('#roomName').hidden = !S.room;
+    $('#dot').style.background = done ? 'var(--alert)' : S.state === 'running' ? (color || 'var(--accent)') : S.state === 'paused' ? 'var(--amber)' : 'var(--muted)';
+    $('#lockLabel').textContent = S.locked ? 'Unlock' : 'Lock';
+    $('#lockBtn').setAttribute('aria-label', S.locked ? 'Unlock the controls (press and hold)' : 'Lock the controls');
+    document.title = done ? "Time's up!" : S.state === 'idle' ? 'Timer' : text;
+
+    // buttons
+    $('#goLabel').textContent = S.state === 'running' ? 'Pause' : S.state === 'paused' ? 'Resume' : done ? 'Restart' : 'Start';
+    $('#goIcon').innerHTML = S.state === 'running' ? ICON_PAUSE : ICON_PLAY;
+    $('#reset').disabled = S.state === 'idle';
+    $('#minus').disabled = $('#plus').disabled = done;
+    $('#cText').textContent = 'This stops the countdown and puts it back to ' + fmt(S.baseTotal || S.total) + '.';
+
+    // presets (only before starting, and never while locked)
+    const pr = $('#presets');
+    const sig = JSON.stringify(S.presets);
+    if (pr.dataset.sig !== sig) {
+      pr.dataset.sig = sig; pr.textContent = '';
+      S.presets.forEach((m) => {
+        const b = document.createElement('button');
+        b.textContent = m + ' min'; b.dataset.ms = m * 60000;
+        b.onclick = () => api.timerCmd('set', m * 60000);
+        pr.appendChild(b);
+      });
+    }
+    pr.querySelectorAll('button').forEach((b) => b.classList.toggle('on', +b.dataset.ms === S.total));
+
+    // run of show strip
+    const segs = S.show.segments, idx = S.show.index;
+    const seg = $('#seg');
+    seg.classList.toggle('on', segs.length > 0);
+    if (segs.length) {
+      const nm = (i) => segs[i].name.trim() || 'Segment ' + (i + 1);
+      $('#segText').textContent = idx < 0 ? 'Show ready · first: ' + nm(0)
+        : 'Segment ' + (idx + 1) + ' of ' + segs.length + ' · ' + nm(idx) + (idx + 1 < segs.length ? ' · next: ' + nm(idx + 1) : ' · last');
+      $('#segNext').disabled = idx + 1 >= segs.length;
+    }
+
+    // drawer labels
+    $('#tileShow').textContent = segs.length ? segs.length + ' segment' + (segs.length === 1 ? '' : 's') + (idx >= 0 ? ' · on ' + (idx + 1) : '') : 'No segments yet';
+    $('#tileTT').textContent = S.travel ? 'Time travel on' : 'Time travel off';
+    $('#tileSound').textContent = S.audio.muted ? 'Sound off' : S.audio.sound[0].toUpperCase() + S.audio.sound.slice(1) + ' · ' + S.audio.volume + '%';
+    $('#swEnd').setAttribute('aria-checked', !!S.endOnDisplay);
+    $('#swOver').setAttribute('aria-checked', !!S.overtimeDisplay);
+    if (document.activeElement !== $('#roomIn')) $('#roomIn').value = S.room || '';
+
+    fit(false);
+  }
+
+  // ---------- buttons ----------
+  $('#go').onclick = () => api.timerCmd(S.state === 'running' ? 'pause' : 'start');
+  $('#minus').onclick = () => api.timerCmd('adjust', -60000);
+  $('#plus').onclick = () => api.timerCmd('adjust', 60000);
+  $('#segNext').onclick = () => api.timerCmd('show-next');
+
+  // Reset always asks first
+  const confirmEl = $('#confirm');
+  function openConfirm() { confirmEl.classList.add('on'); $('#confirmNo').focus(); pushOverlay(); }
+  $('#reset').onclick = () => { if (S.state !== 'idle') openConfirm(); };
+  $('#confirmNo').onclick = () => closeOverlays(true);
+  $('#confirmYes').onclick = () => { api.timerCmd('reset'); closeOverlays(true); };
+  confirmEl.addEventListener('click', (e) => { if (e.target === confirmEl) closeOverlays(true); });
+
+  // Lock: one tap to lock, press and hold to unlock
+  const lockBtn = $('#lockBtn');
+  let holdT = null, hintT = null;
+  const stopHold = () => { clearTimeout(holdT); holdT = null; lockBtn.classList.remove('holding'); };
+  lockBtn.addEventListener('pointerdown', () => {
+    if (!S.locked) return;
+    lockBtn.classList.add('holding');
+    holdT = setTimeout(() => { stopHold(); api.timerCmd('lock', 'off'); }, 1200);
+  });
+  ['pointerup', 'pointercancel', 'pointerleave'].forEach((ev) => lockBtn.addEventListener(ev, stopHold));
+  lockBtn.addEventListener('contextmenu', (e) => e.preventDefault());
+  lockBtn.addEventListener('click', () => {
+    if (!S.locked) { api.timerCmd('lock', 'on'); return; }
+    $('#lockHint').classList.add('on');
+    clearTimeout(hintT); hintT = setTimeout(() => $('#lockHint').classList.remove('on'), 2200);
+  });
+
+  // More drawer (the Android back button closes it)
+  const drawer = $('#drawer'), scrim = $('#scrim');
+  let overlayPushed = false;
+  function pushOverlay() { if (!overlayPushed) { history.pushState({ overlay: 1 }, ''); overlayPushed = true; } }
+  function hideOverlays() { drawer.classList.remove('on'); scrim.classList.remove('on'); confirmEl.classList.remove('on'); }
+  function closeOverlays(viaUi) {
+    hideOverlays();
+    if (viaUi && overlayPushed) { overlayPushed = false; history.back(); } else overlayPushed = false;
+  }
+  window.addEventListener('popstate', () => { overlayPushed = false; hideOverlays(); });
+  $('#moreBtn').onclick = () => { drawer.classList.add('on'); scrim.classList.add('on'); pushOverlay(); $('#drawerClose').focus(); };
+  $('#drawerClose').onclick = () => closeOverlays(true);
+  scrim.onclick = () => closeOverlays(true);
+  document.querySelectorAll('[data-go]').forEach((b) => { b.onclick = () => api.open(b.dataset.go); });
+  $('#swEnd').onclick = () => api.timerCmd('endshow', 'toggle');
+  $('#swOver').onclick = () => api.timerCmd('overtime', 'toggle');
+  $('#roomIn').onchange = () => api.timerCmd('room', $('#roomIn').value);
+  $('#roomIn').addEventListener('keydown', (e) => { if (e.key === 'Enter') e.target.blur(); });
+
+  api.onTimer((s) => { S = s; render(); });
+  api.onRules((r) => { rules = r; render(); });
+  api.rulesGet().then((r) => { rules = r; render(); });
+  api.timerGet().then((s) => { S = s; render(); fit(true); });
+  setInterval(render, 250);
+  render(); fit(true);
+  if (document.fonts && document.fonts.ready) document.fonts.ready.then(() => fit(true));
+})();
+</script>
+</body>
+</html>
