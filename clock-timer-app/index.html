@@ -173,6 +173,13 @@
   body[data-view="display"] #dispEnd, body[data-view="display"] #dispClockDate { font-weight: var(--dsub, 400); }
   body[data-view="display"] section#display { text-shadow: var(--dshadow, none); }
   body[data-view="display"] .bar { background: var(--track, var(--line)); }
+  /* Display window: the buttons fade away and come back when the pointer is over the top right corner.
+     (Windows does not report hovering over the draggable area, so the corner is its own small target.) */
+  body[data-view="display"] #ctl { opacity: 0; transition: opacity .35s ease; top: 0; right: 0; padding: 6px 6px 16px 24px;
+    -webkit-app-region: no-drag; animation: ctlHint 4.5s ease; }
+  body[data-view="display"] #ctl:hover, body[data-view="display"] #ctl:focus-within { opacity: 1; }
+  @keyframes ctlHint { 0%, 70% { opacity: 1; } 100% { opacity: 0; } }
+  @media (prefers-reduced-motion: reduce) { body[data-view="display"] #ctl { animation: none; transition: none; } }
   /* corner grip: only on a see-through display window, which cannot be resized by its edge */
   #grip { display: none; position: fixed; right: 2px; bottom: 2px; width: 22px; height: 22px; cursor: nwse-resize; -webkit-app-region: no-drag; opacity: 0; transition: opacity .15s;
     background: linear-gradient(135deg, transparent 0 50%, var(--muted) 50% 56%, transparent 56% 68%, var(--muted) 68% 74%, transparent 74% 86%, var(--muted) 86% 92%, transparent 92%); }
@@ -1048,6 +1055,6 @@
   }
 })();
 </script>
-<script>(function(){var a=document.documentElement.classList.contains('android');var l=a?'a':(/Mac/.test(navigator.userAgent)?'m':'w');var e=document.getElementById('verLine');if(e)e.textContent='Version 1.5.'+l;})();</script>
+<script>(function(){var a=document.documentElement.classList.contains('android');var l=a?'a':(/Mac/.test(navigator.userAgent)?'m':'w');var e=document.getElementById('verLine');if(e)e.textContent='Version 1.6.'+l;})();</script>
 </body>
 </html>

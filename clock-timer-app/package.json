@@ -1,6 +1,6 @@
 {
   "name": "clock-timer",
-  "version": "1.5.0",
+  "version": "1.6.0",
   "description": "Pop-out clock and timer windows",
   "main": "main.js",
   "scripts": {
@@ -23,7 +23,7 @@
     },
     "win": {
       "target": "portable",
-      "artifactName": "Clock-Timer-1.5.w.exe"
+      "artifactName": "Clock-Timer-1.6.w.exe"
     }
   }
 }

@@ -1,6 +1,6 @@
 {
   "name": "companion-module-clocktimer-app",
-  "version": "1.5.0",
+  "version": "1.6.0",
   "description": "Control the Clock & Timer desktop app from Bitfocus Companion",
   "type": "module",
   "main": "main.js",

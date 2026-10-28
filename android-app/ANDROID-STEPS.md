@@ -32,8 +32,8 @@ If the folder will not drag in, tell me and I will give you a different way.
 
 ## 4. Download the app
 
-1. Click the finished run. At the bottom, under **Artifacts**, download **Clock-Timer-1.5.a-Android**.
-2. Unzip it. Inside is **Clock-Timer-1.5.a.apk**.
+1. Click the finished run. At the bottom, under **Artifacts**, download **Clock-Timer-1.6.a-Android**.
+2. Unzip it. Inside is **Clock-Timer-1.6.a.apk**.
 
 ## 5. Put it on the Galaxy S22 Ultra
 
