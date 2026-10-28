@@ -19,19 +19,19 @@ jobs:
           - name: Mac (Apple Silicon)
             os: macos-latest
             build: npm run dist:mac -- --arm64 --publish never
-            artifact: Clock-Timer-1.4.m-Apple-Silicon
-            zip: Clock-Timer-1.4.m-Apple-Silicon.zip
+            artifact: Clock-Timer-1.5.m-Apple-Silicon
+            zip: Clock-Timer-1.5.m-Apple-Silicon.zip
             files: dist/*.zip
           - name: Mac (Intel)
             os: macos-latest
             build: npm run dist:mac -- --x64 --publish never
-            artifact: Clock-Timer-1.4.m-Intel
-            zip: Clock-Timer-1.4.m-Intel.zip
+            artifact: Clock-Timer-1.5.m-Intel
+            zip: Clock-Timer-1.5.m-Intel.zip
             files: dist/*.zip
           - name: Windows
             os: windows-latest
             build: npm run dist:win -- --publish never
-            artifact: Clock-Timer-1.4.w-Windows
+            artifact: Clock-Timer-1.5.w-Windows
             files: dist/*.exe
     steps:
       - uses: actions/checkout@v5
