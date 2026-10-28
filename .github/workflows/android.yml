@@ -15,13 +15,10 @@ jobs:
     steps:
       - uses: actions/checkout@v5
 
-      - name: Find the Android folder
+      - name: Use the Android folder
         id: find
         shell: bash
-        run: |
-          DIR=$(dirname "$(find . -maxdepth 3 -name capacitor.config.json -not -path '*/node_modules/*' | head -1)")
-          echo "Android project folder: $DIR"
-          echo "dir=$DIR" >> "$GITHUB_OUTPUT"
+        run: echo "dir=android-app" >> "$GITHUB_OUTPUT"
 
       - uses: actions/setup-node@v4
         with:
@@ -81,11 +78,11 @@ jobs:
 
       - name: Name the file
         working-directory: ${{ steps.find.outputs.dir }}
-        run: cp android/app/build/outputs/apk/debug/app-debug.apk Clock-Timer.apk
+        run: cp android/app/build/outputs/apk/debug/app-debug.apk Clock-Timer-1.4.a.apk
 
       - name: Keep the finished app
         uses: actions/upload-artifact@v7
         with:
-          name: Clock-Timer-Android
-          path: ${{ steps.find.outputs.dir }}/Clock-Timer.apk
+          name: Clock-Timer-1.4.a-Android
+          path: ${{ steps.find.outputs.dir }}/Clock-Timer-1.4.a.apk
           if-no-files-found: error
