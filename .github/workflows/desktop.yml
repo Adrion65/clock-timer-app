@@ -1,0 +1,70 @@
+name: Build Windows and Mac apps
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main, master]
+    paths:
+      - 'clock-timer-app/**'
+      - '.github/workflows/desktop.yml'
+
+jobs:
+  build:
+    name: ${{ matrix.name }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: Mac (Apple Silicon)
+            os: macos-latest
+            build: npm run dist:mac -- --arm64 --publish never
+            artifact: Clock-Timer-1.4.m-Apple-Silicon
+            zip: Clock-Timer-1.4.m-Apple-Silicon.zip
+            files: dist/*.zip
+          - name: Mac (Intel)
+            os: macos-latest
+            build: npm run dist:mac -- --x64 --publish never
+            artifact: Clock-Timer-1.4.m-Intel
+            zip: Clock-Timer-1.4.m-Intel.zip
+            files: dist/*.zip
+          - name: Windows
+            os: windows-latest
+            build: npm run dist:win -- --publish never
+            artifact: Clock-Timer-1.4.w-Windows
+            files: dist/*.exe
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Use the desktop app folder
+        id: find
+        shell: bash
+        run: echo "dir=clock-timer-app" >> "$GITHUB_OUTPUT"
+
+      - name: Install build tools
+        shell: bash
+        working-directory: ${{ steps.find.outputs.dir }}
+        run: npm install --save-dev electron electron-builder
+
+      - name: Build the app
+        shell: bash
+        working-directory: ${{ steps.find.outputs.dir }}
+        run: ${{ matrix.build }}
+
+      - name: Sign the Mac app so macOS accepts it
+        if: runner.os == 'macOS'
+        shell: bash
+        working-directory: ${{ steps.find.outputs.dir }}
+        run: |
+          APP=$(find dist -maxdepth 2 -name "*.app" | head -1)
+          echo "Signing: $APP"
+          codesign --force --deep --sign - "$APP"
+          rm -f dist/*.zip
+          ditto -c -k --sequesterRsrc --keepParent "$APP" "dist/${{ matrix.zip }}"
+
+      - name: Keep the finished app
+        uses: actions/upload-artifact@v7
+        with:
+          name: ${{ matrix.artifact }}
+          path: ${{ steps.find.outputs.dir }}/${{ matrix.files }}
+          if-no-files-found: error
