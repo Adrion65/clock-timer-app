@@ -42,7 +42,7 @@ jobs:
           npx cap add android
           npx cap sync android
 
-      - name: Keep the screen on while the app is open
+      - name: Keep the screen on and add the second-screen output
         working-directory: ${{ steps.find.outputs.dir }}
         run: |
           FILE=$(find android/app/src/main/java -name MainActivity.java | head -1)
@@ -56,11 +56,13 @@ jobs:
           public class MainActivity extends BridgeActivity {
             @Override
             public void onCreate(Bundle savedInstanceState) {
+              registerPlugin(ExtDisplayPlugin.class);
               super.onCreate(savedInstanceState);
               getWindow().addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
             }
           }
           JAVA
+          cp native/ExtDisplayPlugin.java "$(dirname "$FILE")/ExtDisplayPlugin.java"
           cat "$FILE"
 
       - name: Lock the screen to landscape
