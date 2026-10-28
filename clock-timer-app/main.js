@@ -13,7 +13,7 @@ const SIZES = {
   audio:    { width: 380, height: 250, minWidth: 340, minHeight: 230 },
   show:     { width: 640, height: 520, minWidth: 560, minHeight: 340 },
   presets:  { width: 340, height: 540, minWidth: 300, minHeight: 260 },
-  colors:   { width: 440, height: 380, minWidth: 380, minHeight: 240 },
+  colors:   { width: 470, height: 680, minWidth: 420, minHeight: 300 },
   help:     { width: 640, height: 700, minWidth: 420, minHeight: 360 },
 };
 
@@ -69,12 +69,30 @@ function saveShow() {
   try { fs.writeFileSync(showFile(), JSON.stringify({ segments: show.segments, auto: show.auto })); } catch (e) { /* ignore */ }
 }
 let endOnDisplay = true; // show "ends at ..." under the countdown on the display
+// How the Timer display window looks (font, background, text). Only the Timer display uses this.
+const FONTS = ['default', 'inter', 'oswald', 'barlow', 'bebas', 'orbitron', 'sharetech', 'jetbrains', 'robotomono', 'spacemono'];
+const WEIGHTS = ['light', 'regular', 'bold'];
+const TEXTS = ['auto', 'light', 'dark'];
+let look = { font: 'default', weight: 'light', bg: null, alpha: 100, text: 'auto', shadow: false };
+let displayTop = true; // keep the Timer display windows above other apps
+function cleanLook(a, base) {
+  const o = { ...base };
+  if (!a || typeof a !== 'object') return o;
+  if (FONTS.includes(a.font)) o.font = a.font;
+  if (WEIGHTS.includes(a.weight)) o.weight = a.weight;
+  if (a.bg === null) o.bg = null;
+  else if (typeof a.bg === 'string' && /^#[0-9a-f]{6}$/i.test(a.bg)) o.bg = a.bg.toLowerCase();
+  if (Number.isFinite(a.alpha)) o.alpha = Math.min(100, Math.max(0, Math.round(a.alpha)));
+  if (TEXTS.includes(a.text)) o.text = a.text;
+  if (typeof a.shadow === 'boolean') o.shadow = a.shadow;
+  return o;
+}
 const settingsFile = () => path.join(app.getPath('userData'), 'settings.json');
 function loadSettings() {
-  try { const s = JSON.parse(fs.readFileSync(settingsFile(), 'utf8')); if (typeof s.overtimeDisplay === 'boolean') overtimeDisplay = s.overtimeDisplay; if (typeof s.endOnDisplay === 'boolean') endOnDisplay = s.endOnDisplay; const p = cleanPresets(s.presets); if (p) presets = p; } catch (e) { /* defaults */ }
+  try { const s = JSON.parse(fs.readFileSync(settingsFile(), 'utf8')); if (typeof s.overtimeDisplay === 'boolean') overtimeDisplay = s.overtimeDisplay; if (typeof s.endOnDisplay === 'boolean') endOnDisplay = s.endOnDisplay; const p = cleanPresets(s.presets); if (p) presets = p; if (s.look) look = cleanLook(s.look, look); if (typeof s.displayTop === 'boolean') displayTop = s.displayTop; } catch (e) { /* defaults */ }
 }
 function saveSettings() {
-  try { fs.writeFileSync(settingsFile(), JSON.stringify({ overtimeDisplay, endOnDisplay, presets })); } catch (e) { /* ignore */ }
+  try { fs.writeFileSync(settingsFile(), JSON.stringify({ overtimeDisplay, endOnDisplay, presets, look, displayTop })); } catch (e) { /* ignore */ }
 }
 
 let face = 'timer'; // what the Timer display windows show: 'timer' or 'clock'
@@ -86,6 +104,8 @@ const snapshot = () => ({
   mode: timer.mode, tod: timer.tod, targetAt: timer.targetAt, notice: timer.notice,
   display: displayState(),
   face,
+  look,
+  displayTop,
   audio,
   doneAt: timer.state === 'done' ? timer.doneAt : 0,
   overtimeDisplay,
@@ -116,7 +136,21 @@ function setDisplay(action) {
   } else {
     displayHidden = false;
     if (ds.length === 0) create('display');
-    else ds.forEach((w) => w.show());
+    else { ds.forEach((w) => w.show()); syncDisplayWindows(); }
+  }
+}
+
+// A window's transparency is fixed when it is created, so changing it means opening a new one in the same place
+const winMeta = new Map(); // webContents id -> { transparent }
+function syncDisplayWindows() {
+  if (displayHidden) return; // they are brought up to date when shown again
+  const want = look.alpha < 100;
+  for (const w of displays()) {
+    const meta = winMeta.get(w.webContents.id);
+    if (meta && meta.transparent !== want) {
+      create('display', { bounds: w.getBounds() });
+      w.close();
+    }
   }
 }
 
@@ -250,6 +284,16 @@ function timerCmd(cmd, arg) {
     saveSettings();
   } else if (cmd === 'endshow' && ['on', 'off', 'toggle'].includes(arg)) {
     endOnDisplay = arg === 'toggle' ? !endOnDisplay : arg === 'on';
+    saveSettings();
+  } else if (cmd === 'look' && arg && typeof arg === 'object') {
+    look = cleanLook(arg, look);
+    saveSettings();
+    syncDisplayWindows();
+  } else if (cmd === 'displaytop' && ['on', 'off', 'toggle'].includes(arg)) {
+    displayTop = arg === 'toggle' ? !displayTop : arg === 'on';
+    for (const w of displays()) {
+      if (displayTop) { w.setAlwaysOnTop(true, TOP_LEVEL); w.moveTop(); } else w.setAlwaysOnTop(false);
+    }
     saveSettings();
   } else if (cmd === 'adjust' && Number.isFinite(arg) && arg !== 0 && Math.abs(arg) <= 3600000 && timer.state !== 'done') {
     // Add or remove time (never below 1 second); the bar stays full if time is added past the original total
@@ -510,17 +554,22 @@ if (process.platform === 'win32') {
   setInterval(() => { for (const w of BrowserWindow.getAllWindows()) raise(w); }, 1500);
 }
 
-function create(view) {
+function create(view, opts = {}) {
   const popup = view !== 'launcher' && view !== 'help'; // help is a normal window
   const n = BrowserWindow.getAllWindows().length;
+  const transparent = view === 'display' && look.alpha < 100;
+  const onTop = view === 'display' ? displayTop : popup;
 
   const win = new BrowserWindow({
     ...(popup ? SIZES[view] : view === 'help' ? SIZES.help : { width: 480, height: 430, resizable: false }),
+    ...(opts.bounds ? opts.bounds : {}),
     frame: !popup,
-    alwaysOnTop: popup,
+    alwaysOnTop: onTop,
+    show: !opts.bounds,
+    ...(transparent ? { transparent: true, resizable: false, hasShadow: false } : {}),
     autoHideMenuBar: true,
     title: view === 'help' ? 'Remote control help' : 'Clock & Timer',
-    backgroundColor: nativeTheme.shouldUseDarkColors ? '#12161c' : '#f3f5f8',
+    backgroundColor: transparent ? '#00000000' : nativeTheme.shouldUseDarkColors ? '#12161c' : '#f3f5f8',
     webPreferences: {
       preload: path.join(__dirname, 'preload.js'),
       contextIsolation: true,
@@ -531,14 +580,17 @@ function create(view) {
 
   const id = win.webContents.id;
   roles.set(id, view);
+  winMeta.set(id, { transparent });
+  if (opts.bounds) win.once('ready-to-show', () => win.showInactive());
   win.on('closed', () => {
     roles.delete(id);
+    winMeta.delete(id);
     if (view === 'display') {
       if (displays().length === 0) displayHidden = false;
       broadcast();
     }
   });
-  if (view === 'display') {
+  if (view === 'display' && !opts.bounds) {
     // Opening a display brings back any that were hidden
     displayHidden = false;
     displays().forEach((w) => w.show());
@@ -546,11 +598,13 @@ function create(view) {
   }
 
   if (popup) {
-    win.setAlwaysOnTop(true, TOP_LEVEL);
+    if (onTop) win.setAlwaysOnTop(true, TOP_LEVEL);
     win.on('blur', () => raise(win));
     win.on('show', () => raise(win));
-    const [x, y] = win.getPosition();
-    win.setPosition(x + 30 * (n % 6), y + 30 * (n % 6));
+    if (!opts.bounds) {
+      const [x, y] = win.getPosition();
+      win.setPosition(x + 30 * (n % 6), y + 30 * (n % 6));
+    }
   }
   win.loadFile('index.html', { query: { view } });
   return win;
@@ -564,6 +618,15 @@ ipcMain.handle('open', (_e, view) => {
     if (existing) { existing.focus(); return; }
   }
   create(view);
+});
+// Transparent windows cannot be resized by dragging their edge, so the page has a corner grip that asks for a size
+ipcMain.handle('resize-to', (e, w, h) => {
+  const win = BrowserWindow.fromWebContents(e.sender);
+  if (!win || roles.get(e.sender.id) !== 'display') return;
+  w = Math.round(Number(w)); h = Math.round(Number(h));
+  if (!Number.isFinite(w) || !Number.isFinite(h)) return;
+  const [mw, mh] = win.getMinimumSize();
+  win.setSize(Math.min(4000, Math.max(mw || 200, w)), Math.min(3000, Math.max(mh || 90, h)));
 });
 ipcMain.handle('close', (e) => BrowserWindow.fromWebContents(e.sender)?.close());
 ipcMain.handle('toggle-pin', (e) => {

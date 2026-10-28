@@ -3,6 +3,7 @@ const { contextBridge, ipcRenderer } = require('electron');
 contextBridge.exposeInMainWorld('api', {
   open: (view) => ipcRenderer.invoke('open', view),
   close: () => ipcRenderer.invoke('close'),
+  resizeTo: (w, h) => ipcRenderer.invoke('resize-to', w, h),
   togglePin: () => ipcRenderer.invoke('toggle-pin'),
   timerGet: () => ipcRenderer.invoke('timer-get'),
   timerCmd: (cmd, arg) => ipcRenderer.invoke('timer-cmd', cmd, arg),

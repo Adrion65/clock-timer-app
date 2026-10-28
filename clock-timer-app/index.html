@@ -102,8 +102,8 @@
   #ctl button[aria-pressed="true"] { color: var(--text); border-color: var(--accent); }
   #fmt { display: none; }
   body[data-view="clock"] #fmt, body[data-view="display"][data-face="clock"] #fmt { display: inline-block; }
-  #face { display: none; }
-  body[data-view="display"] #face { display: inline-block; }
+  #face { display: none !important; }
+  body[data-view="display"] #pin { display: none; }
   body[data-view="display"][data-face="clock"] #dispTimerFace { display: none; }
   body[data-view="display"]:not([data-face="clock"]) #dispClockFace { display: none; }
   #dispClockDate { color: var(--muted); margin-top: 1.5vh; }
@@ -152,6 +152,46 @@
   #launcher button { padding: 12px 18px; font-size: 15px; }
   #launcher #apiNote { font-size: 12px; margin: 18px 0 8px; }
   #launcher #newHelp { padding: 5px 12px; font-size: 13px; color: var(--muted); }
+
+  /* ---- Free open-source fonts for the Timer display (SIL Open Font License, see fonts/LICENSES-OFL.txt) ---- */
+  @font-face { font-family: "CT Inter"; src: url("fonts/Inter.ttf"); font-weight: 100 900; }
+  @font-face { font-family: "CT Oswald"; src: url("fonts/Oswald.ttf"); font-weight: 200 700; }
+  @font-face { font-family: "CT Barlow"; src: url("fonts/BarlowCondensed-Light.ttf"); font-weight: 100 349; }
+  @font-face { font-family: "CT Barlow"; src: url("fonts/BarlowCondensed-Regular.ttf"); font-weight: 350 549; }
+  @font-face { font-family: "CT Barlow"; src: url("fonts/BarlowCondensed-Bold.ttf"); font-weight: 550 900; }
+  @font-face { font-family: "CT Bebas"; src: url("fonts/BebasNeue-Regular.ttf"); font-weight: 100 900; }
+  @font-face { font-family: "CT Orbitron"; src: url("fonts/Orbitron.ttf"); font-weight: 400 900; }
+  @font-face { font-family: "CT Share"; src: url("fonts/ShareTechMono-Regular.ttf"); font-weight: 100 900; }
+  @font-face { font-family: "CT JetBrains"; src: url("fonts/JetBrainsMono.ttf"); font-weight: 100 800; }
+  @font-face { font-family: "CT Roboto Mono"; src: url("fonts/RobotoMono.ttf"); font-weight: 100 700; }
+  @font-face { font-family: "CT Space"; src: url("fonts/SpaceMono-Regular.ttf"); font-weight: 100 549; }
+  @font-face { font-family: "CT Space"; src: url("fonts/SpaceMono-Bold.ttf"); font-weight: 550 900; }
+  /* The Timer display: font, weight, shadow and text colors come from the Display look settings */
+  body[data-view="display"] .digits, body[data-view="display"] #dispEnd, body[data-view="display"] #dispClockDate {
+    font-family: var(--dfont, inherit); }
+  body[data-view="display"] .digits { font-weight: var(--dweight, 250); }
+  body[data-view="display"] #dispEnd, body[data-view="display"] #dispClockDate { font-weight: var(--dsub, 400); }
+  body[data-view="display"] section#display { text-shadow: var(--dshadow, none); }
+  body[data-view="display"] .bar { background: var(--track, var(--line)); }
+  /* corner grip: only on a see-through display window, which cannot be resized by its edge */
+  #grip { display: none; position: fixed; right: 2px; bottom: 2px; width: 22px; height: 22px; cursor: nwse-resize; -webkit-app-region: no-drag; opacity: 0; transition: opacity .15s;
+    background: linear-gradient(135deg, transparent 0 50%, var(--muted) 50% 56%, transparent 56% 68%, var(--muted) 68% 74%, transparent 74% 86%, var(--muted) 86% 92%, transparent 92%); }
+  body[data-view="display"].see-through #grip { display: block; }
+  body[data-view="display"].see-through:hover #grip { opacity: .8; }
+  /* Display look settings (Timer colors window) */
+  #lookBox { text-align: left; margin-bottom: 14px; padding-bottom: 12px; border-bottom: 1px solid var(--line); }
+  #lookBox h3 { font-size: 13px; font-weight: 600; margin: 12px 0 6px; color: var(--muted); }
+  #fontGrid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 6px; }
+  #fontGrid button { display: flex; flex-direction: column; align-items: flex-start; gap: 2px; padding: 6px 10px; text-align: left; }
+  #fontGrid button .nm { font-size: 11px; color: var(--muted); font-family: system-ui, sans-serif; font-weight: 400; }
+  #fontGrid button .pv { font-size: 24px; line-height: 1.1; font-variant-numeric: tabular-nums; }
+  #fontGrid button[aria-pressed="true"], #lookBox .chip[aria-pressed="true"] { border-color: var(--accent); outline: 1px solid var(--accent); }
+  #lookBox .line { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+  #lookBox input[type=color] { width: 44px; height: 30px; padding: 0; }
+  #lookBox input[type=range] { flex: 1; min-width: 120px; }
+  #lookBox label { font-size: 13px; }
+  .android #lookBox { display: none; }
+  .android #grip { display: none !important; }
 </style>
 </head>
 <body data-view="launcher">
@@ -182,6 +222,7 @@
   <div id="clockDate"></div>
 </section>
 
+<div id="grip" title="Drag to resize"></div>
 <section id="display">
   <div id="dispTimerFace">
     <p class="digits fit" id="dispTime"></p>
@@ -238,6 +279,7 @@
     <button id="openShow">Run of show</button>
     <button id="dispToggle">Hide display</button>
     <button id="faceToggle">Show clock</button>
+    <button id="topToggle" title="Keep the Timer display above other windows">Display on top: On</button>
     <button id="endToggle" title="Show the real clock time the timer will finish, under the countdown on the Timer display">Display ends-at: On</button>
     <button id="overToggle" title="Show the count-up after zero on the Timer display (the controls window always shows it)">Display overtime: On</button>
   </div>
@@ -312,6 +354,25 @@
 </section>
 
 <section id="colors">
+  <div id="lookBox">
+    <h2>Display look</h2>
+    <p class="hint">How the Timer display window looks. The other windows are not changed.</p>
+    <h3>Font</h3>
+    <div id="fontGrid"></div>
+    <h3>Weight</h3>
+    <div class="line" id="weightRow"></div>
+    <h3>Background</h3>
+    <div class="line">
+      <input type="color" id="bgColor" aria-label="Background color">
+      <button class="chip" id="bgTheme" title="Use the normal dark or light background">Match theme</button>
+      <button class="chip" id="bgClear" title="Make the background see-through">Transparent</button>
+    </div>
+    <div class="line" style="margin-top:8px"><label for="bgAlpha">Opacity</label><input type="range" id="bgAlpha" min="0" max="100" step="1"><span id="bgAlphaOut"></span></div>
+    <p class="hint" id="bgNote" style="margin-top:6px"></p>
+    <h3>Text color</h3>
+    <div class="line" id="textRow"></div>
+    <div class="line" style="margin-top:8px"><label><input type="checkbox" id="shadowCk"> Text shadow (helps read the digits on a see-through window)</label></div>
+  </div>
   <h2>Timer colors</h2>
   <p class="hint">Pick a color for the timer to switch to once the time left drops to a set point. When several rules match, the one with the smallest time wins. Above every rule, the timer keeps its normal color.</p>
   <div id="ruleList"></div>
@@ -329,8 +390,9 @@
   document.body.dataset.view = view;
 
   // Scale big digits to fill the window (width and height), at any window size
+  let fitScale = 1; // a little smaller for fonts whose digits are not all the same width
   function fit(el, heightFrac) {
-    const availW = el.parentElement.clientWidth - 32;
+    const availW = (el.parentElement.clientWidth - 32) * fitScale;
     const availH = window.innerHeight * heightFrac;
     el.style.fontSize = '100px';
     const w = el.offsetWidth || 1;
@@ -374,6 +436,58 @@
     const on = await window.api.togglePin();
     $('#pin').setAttribute('aria-pressed', on);
   };
+
+  // ---- Display look: font, background, text (applies to the Timer display window only)
+  const FONT_CSS = {
+    default: '', inter: '"CT Inter", system-ui, sans-serif', oswald: '"CT Oswald", sans-serif', barlow: '"CT Barlow", sans-serif',
+    bebas: '"CT Bebas", sans-serif', orbitron: '"CT Orbitron", sans-serif', sharetech: '"CT Share", monospace',
+    jetbrains: '"CT JetBrains", monospace', robotomono: '"CT Roboto Mono", monospace', spacemono: '"CT Space", monospace',
+  };
+  const FONT_NAMES = { default: 'System default', inter: 'Inter', oswald: 'Oswald', barlow: 'Barlow Condensed', bebas: 'Bebas Neue',
+    orbitron: 'Orbitron', sharetech: 'Share Tech Mono', jetbrains: 'JetBrains Mono', robotomono: 'Roboto Mono', spacemono: 'Space Mono' };
+  const WEIGHT_CSS = { light: 250, regular: 400, bold: 700 };
+  const hexRgb = (x) => [1, 3, 5].map((i) => parseInt(x.slice(i, i + 2), 16));
+  const lumOf = ([r, g, b]) => (0.2126 * r + 0.7152 * g + 0.0722 * b) / 255;
+  let lookSig = '';
+  function applyLook(L) {
+    if (view !== 'display' || !L) return;
+    const dark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+    const sig = JSON.stringify(L) + dark;
+    if (sig === lookSig) return;
+    lookSig = sig;
+    const base = L.bg || (dark ? '#12161c' : '#f3f5f8');
+    const rgb = hexRgb(base), a = L.alpha / 100, st = document.body.style;
+    st.setProperty('--bg', 'rgba(' + rgb.join(',') + ',' + a + ')');
+    let mode = L.text;
+    if (mode === 'auto') mode = L.alpha >= 35 ? (lumOf(rgb) < 0.5 ? 'light' : 'dark') : (dark ? 'light' : 'dark');
+    const light = mode === 'light';
+    st.setProperty('--text', light ? '#f4f7fa' : '#10151b');
+    st.setProperty('--muted', light ? '#aab6c3' : '#4a5663');
+    st.setProperty('--track', light ? 'rgba(244,247,250,.22)' : 'rgba(16,21,27,.22)');
+    st.setProperty('--dfont', FONT_CSS[L.font] || 'inherit');
+    st.setProperty('--dweight', WEIGHT_CSS[L.weight] || 250);
+    st.setProperty('--dsub', L.weight === 'bold' ? 600 : 400);
+    st.setProperty('--dshadow', L.shadow ? (light ? '0 0 6px rgba(0,0,0,.85), 0 1px 3px rgba(0,0,0,.9)' : '0 0 6px rgba(255,255,255,.85), 0 1px 3px rgba(255,255,255,.9)') : 'none');
+    document.body.classList.toggle('see-through', L.alpha < 100);
+    fitScale = L.font === 'default' ? 1 : 0.97;
+    const refitNow = () => { fitLen = -1; refit(); };
+    refitNow();
+    if (FONT_CSS[L.font] && document.fonts) document.fonts.load('100px ' + FONT_CSS[L.font].split(',')[0]).then(refitNow, () => {});
+  }
+  if (view === 'display') {
+    const g = $('#grip');
+    let drag = null;
+    g.addEventListener('pointerdown', (e) => {
+      g.setPointerCapture(e.pointerId);
+      drag = { x: e.screenX, y: e.screenY, w: window.outerWidth, h: window.outerHeight };
+      e.preventDefault();
+    });
+    g.addEventListener('pointermove', (e) => {
+      if (drag && window.api.resizeTo) window.api.resizeTo(drag.w + e.screenX - drag.x, drag.h + e.screenY - drag.y);
+    });
+    const end = () => { drag = null; };
+    g.addEventListener('pointerup', end); g.addEventListener('pointercancel', end);
+  }
 
   // ---- Clock (the Clock window, and the clock face of the Timer display)
   const days = ['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'];
@@ -476,6 +590,7 @@
     $('#overToggle').onclick = () => window.api.timerCmd('overtime', 'toggle');
     $('#faceToggle').onclick = () => window.api.timerCmd('face', 'toggle');
     $('#face').onclick = () => window.api.timerCmd('face', 'toggle');
+    $('#topToggle').onclick = () => window.api.timerCmd('displaytop', 'toggle');
     const onClockFace = () => view === 'display' && S.face === 'clock';
     function drawFace() {
       if (view !== 'display') return;
@@ -530,6 +645,9 @@
       const faceLabel = S.face === 'clock' ? 'Show timer' : 'Show clock';
       $('#faceToggle').textContent = faceLabel;
       $('#face').textContent = faceLabel;
+      $('#topToggle').textContent = 'Display on top: ' + (S.displayTop === false ? 'Off' : 'On');
+      $('#topToggle').setAttribute('aria-pressed', S.displayTop !== false);
+      applyLook(S.look);
       drawFace();
       const au = S.audio || { muted: false, volume: 80, sound: 'beep', repeats: 3 };
       $('#muteBtn').textContent = 'Sound: ' + (au.muted ? 'Off' : 'On');
@@ -884,9 +1002,52 @@
     window.api.onRules((r) => { if (JSON.stringify(r) !== JSON.stringify(rules)) { rules = r; build(); } });
     window.api.rulesGet().then((r) => { rules = r; build(); });
     build();
+    // ---- Display look controls
+    let L = { font: 'default', weight: 'light', bg: null, alpha: 100, text: 'auto', shadow: false };
+    const setLook = (patch) => window.api.timerCmd('look', patch);
+    const fontGrid = $('#fontGrid');
+    Object.keys(FONT_NAMES).forEach((id) => {
+      const b = document.createElement('button');
+      b.dataset.id = id;
+      const pv = document.createElement('span'); pv.className = 'pv'; pv.textContent = '12:34';
+      if (FONT_CSS[id]) pv.style.fontFamily = FONT_CSS[id];
+      pv.style.fontWeight = 400;
+      const nm = document.createElement('span'); nm.className = 'nm'; nm.textContent = FONT_NAMES[id];
+      b.append(pv, nm);
+      b.onclick = () => setLook({ font: id });
+      fontGrid.appendChild(b);
+    });
+    const chipRow = (el, key, items) => items.forEach(([val, label]) => {
+      const b = document.createElement('button');
+      b.className = 'chip'; b.textContent = label; b.dataset.val = val;
+      b.onclick = () => setLook({ [key]: val });
+      el.appendChild(b);
+    });
+    chipRow($('#weightRow'), 'weight', [['light', 'Light'], ['regular', 'Regular'], ['bold', 'Bold']]);
+    chipRow($('#textRow'), 'text', [['auto', 'Automatic'], ['light', 'Light'], ['dark', 'Dark']]);
+    $('#bgColor').oninput = () => setLook({ bg: $('#bgColor').value });
+    $('#bgTheme').onclick = () => setLook({ bg: null, alpha: 100 });
+    $('#bgClear').onclick = () => setLook({ alpha: 0 });
+    $('#bgAlpha').oninput = () => { $('#bgAlphaOut').textContent = $('#bgAlpha').value + '%'; setLook({ alpha: +$('#bgAlpha').value }); };
+    $('#shadowCk').onchange = () => setLook({ shadow: $('#shadowCk').checked });
+    function showLook() {
+      const dark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+      fontGrid.querySelectorAll('button').forEach((b) => b.setAttribute('aria-pressed', b.dataset.id === L.font));
+      $('#weightRow').querySelectorAll('button').forEach((b) => b.setAttribute('aria-pressed', b.dataset.val === L.weight));
+      $('#textRow').querySelectorAll('button').forEach((b) => b.setAttribute('aria-pressed', b.dataset.val === L.text));
+      if (document.activeElement !== $('#bgColor')) $('#bgColor').value = L.bg || (dark ? '#12161c' : '#f3f5f8');
+      if (document.activeElement !== $('#bgAlpha')) $('#bgAlpha').value = L.alpha;
+      $('#bgAlphaOut').textContent = L.alpha + '%';
+      $('#shadowCk').checked = !!L.shadow;
+      $('#bgNote').textContent = L.alpha < 100
+        ? 'See-through display: drag the digits to move the window, and drag the small corner mark (bottom right) to resize it. Changing this reopens the display window in the same place.'
+        : '';
+    }
+    window.api.timerGet().then((s) => { if (s.look) { L = s.look; showLook(); } });
+    window.api.onTimer((s) => { if (s.look) { L = s.look; showLook(); } });
   }
 })();
 </script>
-<script>(function(){var a=document.documentElement.classList.contains('android');var l=a?'a':(/Mac/.test(navigator.userAgent)?'m':'w');var e=document.getElementById('verLine');if(e)e.textContent='Version 1.4.'+l;})();</script>
+<script>(function(){var a=document.documentElement.classList.contains('android');var l=a?'a':(/Mac/.test(navigator.userAgent)?'m':'w');var e=document.getElementById('verLine');if(e)e.textContent='Version 1.5.'+l;})();</script>
 </body>
 </html>

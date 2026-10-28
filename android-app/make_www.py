@@ -8,7 +8,7 @@ h = open(src, encoding='utf-8').read()
 
 ANDROID_CSS = """
   /* ---- Android (touch, one screen at a time) ---- */
-  .android #pin, .android #dispToggle, .android #newHelp, .android #apiNote { display: none !important; }
+  .android #pin, .android #topToggle, .android #dispToggle, .android #newHelp, .android #apiNote { display: none !important; }
   .android button.chip { padding: 8px 12px; font-size: 14px; }
   .android #ctl button { padding: 6px 12px; font-size: 13px; }
   .android input[type=number] { width: 84px; padding: 8px 6px; font-size: 15px; }
