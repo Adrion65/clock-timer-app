@@ -1,0 +1,75 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Timer display</title>
+<style>
+  :root { --bg: #12161c; --text: #e8edf2; --muted: #8a97a6; --accent: #5fb3d9; --alert: #ff6b5e; --track: #2a3441; }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; height: 100%; background: var(--bg); color: var(--text); overflow: hidden;
+    font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; cursor: none; user-select: none; }
+  body.done { animation: flash .7s ease-in-out 8; }
+  @keyframes flash { 50% { background: color-mix(in srgb, var(--alert) 45%, var(--bg)); } }
+  #room { position: absolute; left: 4vw; top: 3.5vh; font-size: clamp(18px, 3.4vh, 40px); color: var(--muted); font-weight: 600; }
+  #stage { position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 8vh 5vw 5vh; }
+  #digits { font-weight: 200; letter-spacing: -.03em; line-height: 1; white-space: nowrap; font-variant-numeric: tabular-nums; font-size: 100px; }
+  #bar { width: 70%; height: 2.2vh; border-radius: 999px; background: var(--track); margin-top: 3.5vh; overflow: hidden; flex: none; }
+  #fill { height: 100%; width: 100%; background: var(--accent); border-radius: 999px; }
+  #info { margin-top: 2.5vh; font-size: clamp(18px, 4.6vh, 56px); color: var(--muted); font-variant-numeric: tabular-nums; min-height: 1.2em; flex: none; }
+  #seg { margin-top: .8vh; font-size: clamp(16px, 3.4vh, 40px); color: var(--muted); min-height: 1.2em; text-align: center; flex: none; }
+  body.done #digits { color: var(--alert); }
+  body.done #bar { visibility: hidden; }
+  body.done #info { color: var(--alert); font-weight: 600; }
+  body.idle #bar { opacity: .35; }
+  body.paused #digits { opacity: .75; }
+  @media (prefers-reduced-motion: reduce) { body.done { animation: none; background: color-mix(in srgb, var(--alert) 35%, var(--bg)); } }
+</style>
+</head>
+<body class="idle">
+  <div id="room"></div>
+  <div id="stage">
+    <div id="digits">--:--</div>
+    <div id="bar"><div id="fill"></div></div>
+    <div id="info"></div>
+    <div id="seg"></div>
+  </div>
+<script>
+(function () {
+  'use strict';
+  var digits = document.getElementById('digits'), stage = document.getElementById('stage');
+  var sig = '';
+  function fit() {
+    var cs = getComputedStyle(stage), other = 0, i, el, m;
+    var w = stage.clientWidth - parseFloat(cs.paddingLeft) - parseFloat(cs.paddingRight);
+    for (i = 0; i < stage.children.length; i++) {
+      el = stage.children[i]; if (el === digits) continue;
+      m = getComputedStyle(el); other += el.offsetHeight + parseFloat(m.marginTop) + parseFloat(m.marginBottom);
+    }
+    var h = stage.clientHeight - parseFloat(cs.paddingTop) - parseFloat(cs.paddingBottom) - other;
+    var s = [digits.textContent.length, Math.round(w), Math.round(h)].join('|');
+    if (s === sig) return; sig = s;
+    digits.style.fontSize = '100px';
+    var dw = digits.offsetWidth || 1;
+    digits.style.fontSize = Math.max(28, Math.floor(Math.min(100 * w / dw, h * 0.98))) + 'px';
+  }
+  // Called by the app with a small description of what to show
+  window.update = function (d) {
+    if (!d) return;
+    digits.textContent = d.text || '--:--';
+    digits.style.color = d.color || '';
+    var f = document.getElementById('fill');
+    f.style.background = d.color || ''; f.style.width = (d.pct || 0) + '%';
+    document.getElementById('info').textContent = d.info || '';
+    document.getElementById('seg').textContent = d.seg || '';
+    var r = document.getElementById('room'); r.textContent = d.room || '';
+    var st = ['idle', 'running', 'paused', 'done'];
+    for (var i = 0; i < st.length; i++) document.body.classList.toggle(st[i], d.state === st[i]);
+    fit();
+  };
+  window.addEventListener('resize', function () { sig = ''; fit(); });
+  fit();
+})();
+</script>
+</body>
+</html>

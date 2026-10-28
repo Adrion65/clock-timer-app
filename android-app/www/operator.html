@@ -83,6 +83,7 @@
   .tile b { font-size: clamp(17px, 2.8vh, 22px); font-weight: 600; }
   .tile span { font-size: clamp(13px, 2.1vh, 16px); color: var(--muted); }
   .rows { border-top: 1px solid var(--line); }
+  .rowx[hidden] { display: none; }
   .rowx { display: flex; align-items: center; justify-content: space-between; gap: 14px; min-height: 64px; border-bottom: 1px solid var(--line); font-size: 20px; }
   .rowx input[type=text] { width: 230px; max-width: 55%; height: 46px; padding: 0 12px; border-radius: 12px; border: 1px solid var(--line); background: var(--bg); color: var(--text); font: inherit; font-size: 18px; user-select: text; -webkit-user-select: text; }
   .switch { width: 64px; height: 36px; border-radius: 999px; background: var(--line); padding: 0 4px; display: inline-flex; align-items: center; justify-content: flex-start; border: 0; flex: none; }
@@ -159,6 +160,7 @@
   <div class="rows">
     <div class="rowx"><label for="roomIn">Room name</label><input type="text" id="roomIn" maxlength="40" placeholder="e.g. Room 4" autocomplete="off"></div>
     <div class="rowx"><span id="endLbl">Show &ldquo;ends at&rdquo; time</span><button class="switch" id="swEnd" role="switch" aria-checked="true" aria-labelledby="endLbl"><i></i></button></div>
+    <div class="rowx" id="extRow"><span id="extLbl">Second screen (HDMI)<small id="extSub" style="display:block;color:var(--muted);font-size:.7em;margin-top:2px"></small></span><button class="switch" id="swExt" role="switch" aria-checked="false" aria-labelledby="extLbl"><i></i></button></div>
     <div class="rowx"><span id="overLbl">Count up after zero</span><button class="switch" id="swOver" role="switch" aria-checked="true" aria-labelledby="overLbl"><i></i></button></div>
   </div>
   <div class="ver">Clock &amp; Timer for Android &middot; version 1.1</div>
@@ -349,6 +351,18 @@
   document.querySelectorAll('[data-go]').forEach((b) => { b.onclick = () => api.open(b.dataset.go); });
   $('#swEnd').onclick = () => api.timerCmd('endshow', 'toggle');
   $('#swOver').onclick = () => api.timerCmd('overtime', 'toggle');
+  // second screen: the switch is only there in the installed app
+  let extOn = false;
+  async function extRefresh() {
+    const st = api.extStatus ? await api.extStatus() : { supported: false };
+    $('#extRow').hidden = !st.supported;
+    extOn = !!st.on;
+    $('#swExt').setAttribute('aria-checked', extOn);
+    $('#extSub').textContent = !extOn ? 'Off' : st.connected ? 'Showing on the connected screen' : 'On, waiting for a screen to be plugged in';
+  }
+  $('#swExt').onclick = async () => { await api.extSet(!extOn); extRefresh(); };
+  $('#moreBtn').addEventListener('click', extRefresh);
+  extRefresh(); setInterval(() => { if (drawer.classList.contains('on')) extRefresh(); }, 1500);
   $('#roomIn').onchange = () => api.timerCmd('room', $('#roomIn').value);
   $('#roomIn').addEventListener('keydown', (e) => { if (e.key === 'Enter') e.target.blur(); });
 

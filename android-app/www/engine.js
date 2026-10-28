@@ -324,6 +324,70 @@
     },
     onRules: (cb) => { rulesCbs.push(cb); },
   };
+  // ---------- second screen (HDMI / USB-C): a native plugin shows display.html there ----------
+  const EXT_KEY = 'clocktimer.ext';
+  let extOn = false;
+  try { extOn = !!(JSON.parse(localStorage.getItem(EXT_KEY) || '{}').on); } catch (e) { extOn = false; }
+  let Ext = window.__extStub || null;
+  try {
+    if (!Ext && window.Capacitor && window.Capacitor.isNativePlatform && window.Capacitor.isNativePlatform()) Ext = window.Capacitor.registerPlugin('ExtDisplay');
+  } catch (e) { Ext = null; }
+  const two = (n) => String(n).padStart(2, '0');
+  const fmtClock = (ms) => {
+    const s = Math.ceil(ms / 1000), h = Math.floor(s / 3600), m = Math.floor(s % 3600 / 60);
+    return (h ? h + ':' + two(m) : two(m)) + ':' + two(s % 60);
+  };
+  function extPayload() {
+    const now = Date.now(), done = timer.state === 'done';
+    const secs = Math.ceil(timer.remaining / 1000);
+    const over = done && timer.doneAt ? Math.max(0, Math.floor((now - timer.doneAt) / 1000)) : 0;
+    const text = face === 'clock'
+      ? new Date(now).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })
+      : done ? (overtimeDisplay ? '+' + fmtClock(over * 1000) : '00:00') : fmtClock(timer.remaining);
+    let color = '';
+    if (!done && face !== 'clock') {
+      let best = null;
+      for (const r of rules) if (secs <= r.at && (!best || r.at < best.at)) best = r;
+      if (best) color = best.color;
+    }
+    const base = (timer.state === 'idle' || timer.state === 'done') ? timer.total : timer.remaining;
+    let eff = timer.travel ? timer.speed : 1, endMs = null;
+    if (timer.travel && timer.mode === 'target') {
+      const left = timer.targetAt - now;
+      if (left > 0) { eff = base / left; endMs = left; } else eff = 1;
+    }
+    if (endMs === null) endMs = base / eff;
+    const hm = (t) => new Date(t).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
+    let info = '';
+    if (face === 'clock') info = '';
+    else if (done) info = 'Time\u2019s up';
+    else if (timer.state === 'paused') info = 'Paused';
+    else if (endOnDisplay) info = (timer.state === 'running' ? 'ends at ' : 'if started now: ends at ') + hm(now + endMs);
+    let seg = '';
+    const segs = show.segments, idx = show.index;
+    if (segs.length && idx >= 0 && face !== 'clock') seg = segs[idx].name.trim() || 'Segment ' + (idx + 1);
+    return { text, color, info, seg, room, state: face === 'clock' ? 'running' : timer.state,
+      pct: done || face === 'clock' ? 0 : (timer.total ? Math.max(0, Math.min(100, timer.remaining / timer.total * 100)) : 0) };
+  }
+  function extPush() {
+    if (!Ext || !extOn) return;
+    try { Ext.push({ json: JSON.stringify(extPayload()) }); } catch (e) { /* ignore */ }
+  }
+  function extSet(on) {
+    extOn = !!on;
+    try { localStorage.setItem(EXT_KEY, JSON.stringify({ on: extOn })); } catch (e) { /* ignore */ }
+    if (Ext) { try { Ext.setEnabled({ on: extOn }); } catch (e) { /* ignore */ } }
+    extPush();
+    return extOn;
+  }
+  if (Ext) { try { Ext.setEnabled({ on: extOn }); } catch (e) { /* ignore */ } setInterval(extPush, 250); }
+  window.api.extStatus = async () => {
+    let connected = false;
+    if (Ext) { try { connected = !!(await Ext.status()).connected; } catch (e) { connected = false; } }
+    return { supported: !!Ext, on: extOn, connected };
+  };
+  window.api.extSet = async (on) => extSet(on);
+
   window.__clockTimerEngine = { snapshot, timerCmd, save, load }; // for testing
 
   // ---------- start up ----------
