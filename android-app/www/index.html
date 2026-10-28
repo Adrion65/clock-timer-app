@@ -191,6 +191,7 @@
     <button class="primary" id="newControls">Timer controls</button>
     <button class="primary" id="newColors">Timer colors</button>
   </div>
+  <p class="hint" id="verLine" style="text-align:center;margin-top:14px"></p>
   <p class="note" id="apiNote"></p>
   <div class="row" style="margin-top:0"><button class="chip" id="newHelp">Remote control help</button></div>
 </section>
@@ -906,5 +907,6 @@
   }
 })();
 </script>
+<script>(function(){var a=document.documentElement.classList.contains('android');var l=a?'a':(/Mac/.test(navigator.userAgent)?'m':'w');var e=document.getElementById('verLine');if(e)e.textContent='Version 1.4.'+l;})();</script>
 </body>
 </html>

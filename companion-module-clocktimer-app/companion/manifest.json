@@ -1,0 +1,27 @@
+{
+  "type": "connection",
+  "id": "clocktimer-app",
+  "name": "Clock & Timer app",
+  "shortname": "clocktimer",
+  "description": "Control the Clock & Timer desktop app: start, pause, set durations, time travel and end times",
+  "manufacturer": "Clock & Timer",
+  "products": ["Clock & Timer app"],
+  "keywords": ["timer", "countdown", "clock"],
+  "version": "0.0.0",
+  "license": "MIT",
+  "repository": "git+https://github.com/example/companion-module-clocktimer-app.git",
+  "bugs": "https://github.com/example/companion-module-clocktimer-app/issues",
+  "maintainers": [
+    {
+      "name": "Clock Timer",
+      "email": "clocktimer@example.com"
+    }
+  ],
+  "legacyIds": [],
+  "runtime": {
+    "type": "node22",
+    "api": "nodejs-ipc",
+    "apiVersion": "0.0.0",
+    "entrypoint": "../main.js"
+  }
+}

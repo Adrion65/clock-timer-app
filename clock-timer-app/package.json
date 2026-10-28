@@ -1,0 +1,28 @@
+{
+  "name": "clock-timer",
+  "version": "1.4.0",
+  "description": "Pop-out clock and timer windows",
+  "main": "main.js",
+  "scripts": {
+    "start": "electron .",
+    "dist:mac": "electron-builder --mac",
+    "dist:win": "electron-builder --win"
+  },
+  "build": {
+    "appId": "com.example.clocktimer",
+    "productName": "Clock & Timer",
+    "files": [
+      "main.js",
+      "preload.js",
+      "index.html"
+    ],
+    "mac": {
+      "target": "zip",
+      "category": "public.app-category.utilities"
+    },
+    "win": {
+      "target": "portable",
+      "artifactName": "Clock-Timer-1.4.w.exe"
+    }
+  }
+}
