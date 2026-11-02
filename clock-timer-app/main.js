@@ -585,6 +585,12 @@ function create(view, opts = {}) {
   win.on('closed', () => {
     roles.delete(id);
     winMeta.delete(id);
+    // If only hidden windows are left (for example a hidden Timer display), nothing on screen can bring them back
+    // or quit the program, so open the launcher. Checked a moment later so a window being swapped is not mistaken.
+    setTimeout(() => {
+      const all = BrowserWindow.getAllWindows();
+      if (all.length > 0 && all.every((w) => !w.isVisible())) create('launcher');
+    }, 700);
     if (view === 'display') {
       if (displays().length === 0) displayHidden = false;
       broadcast();
@@ -628,6 +634,8 @@ ipcMain.handle('resize-to', (e, w, h) => {
   const [mw, mh] = win.getMinimumSize();
   win.setSize(Math.min(4000, Math.max(mw || 200, w)), Math.min(3000, Math.max(mh || 90, h)));
 });
+// Quit the whole program, including hidden windows (the page asks the person to confirm first)
+ipcMain.handle('quit-app', () => { app.quit(); });
 ipcMain.handle('close', (e) => BrowserWindow.fromWebContents(e.sender)?.close());
 ipcMain.handle('toggle-pin', (e) => {
   const win = BrowserWindow.fromWebContents(e.sender);

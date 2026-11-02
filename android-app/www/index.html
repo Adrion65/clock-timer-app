@@ -180,6 +180,16 @@
   body[data-view="display"] #ctl:hover, body[data-view="display"] #ctl:focus-within { opacity: 1; }
   @keyframes ctlHint { 0%, 70% { opacity: 1; } 100% { opacity: 0; } }
   @media (prefers-reduced-motion: reduce) { body[data-view="display"] #ctl { animation: none; transition: none; } }
+  .quit { color: var(--alert); }
+  #quitDlg { position: fixed; inset: 0; z-index: 100; display: flex; align-items: center; justify-content: center; background: rgba(0,0,0,.55); -webkit-app-region: no-drag; }
+  #quitDlg[hidden] { display: none; }
+  #quitDlg .box { width: min(360px, 90vw); background: var(--surface); color: var(--text); border: 1px solid var(--line); border-radius: 14px; padding: 18px 18px 14px; text-align: left; box-shadow: 0 10px 40px rgba(0,0,0,.5); }
+  #quitDlg h2 { font-size: 17px; margin: 0 0 8px; }
+  #quitDlg p { font-size: 13px; line-height: 1.45; margin: 0 0 8px; color: var(--muted); }
+  #quitDlg p.warn { color: var(--alert); font-weight: 600; }
+  #quitDlg .row { justify-content: flex-end; margin-top: 12px; }
+  #quitDlg button.danger { background: var(--alert); border-color: var(--alert); color: #1a0b09; font-weight: 600; }
+  .android .quit, .android #quitDlg { display: none !important; }
   /* corner grip: only on a see-through display window, which cannot be resized by its edge */
   #grip { display: none; position: fixed; right: 2px; bottom: 2px; width: 22px; height: 22px; cursor: nwse-resize; -webkit-app-region: no-drag; opacity: 0; transition: opacity .15s;
     background: linear-gradient(135deg, transparent 0 50%, var(--muted) 50% 56%, transparent 56% 68%, var(--muted) 68% 74%, transparent 74% 86%, var(--muted) 86% 92%, transparent 92%); }
@@ -236,11 +246,11 @@
     <button class="primary" id="newClock">New clock</button>
     <button class="primary" id="newDisplay">Timer display</button>
     <button class="primary" id="newControls">Timer controls</button>
-    <button class="primary" id="newColors">Timer colors</button>
+    <button class="primary" id="newColors">Design</button>
   </div>
   <p class="hint" id="verLine" style="text-align:center;margin-top:14px"></p>
   <p class="note" id="apiNote"></p>
-  <div class="row" style="margin-top:0"><button class="chip" id="newHelp">Remote control help</button></div>
+  <div class="row" style="margin-top:0"><button class="chip" id="newHelp">Remote control help</button><button class="chip quit" id="quitBtn">Quit Clock &amp; Timer</button></div>
 </section>
 
 <section id="clock">
@@ -300,12 +310,13 @@
   <div class="row">
     <button class="primary" id="go">Start</button>
     <button id="reset">Reset</button>
-    <button id="openColors">Colors</button>
+    <button id="openColors" title="Display look (font, background) and timer colors">Design</button>
     <button id="openAudio">Audio</button>
     <button id="openShow">Run of show</button>
     <button id="dispToggle">Hide display</button>
     <button id="faceToggle">Show clock</button>
     <button id="topToggle" title="Keep the Timer display above other windows">Display on top: On</button>
+    <button class="quit" id="quitCtl" title="Close every window and stop the program">Quit Clock &amp; Timer</button>
     <button id="endToggle" title="Show the real clock time the timer will finish, under the countdown on the Timer display">Display ends-at: On</button>
     <button id="overToggle" title="Show the count-up after zero on the Timer display (the controls window always shows it)">Display overtime: On</button>
   </div>
@@ -408,6 +419,18 @@
   </div>
 </section>
 
+<div id="quitDlg" role="dialog" aria-modal="true" aria-labelledby="quitTitle" hidden>
+  <div class="box">
+    <h2 id="quitTitle">Quit Clock &amp; Timer?</h2>
+    <p>This closes every window, including the Timer display, and stops the timer and remote control. Companion buttons will not work until you open the app again.</p>
+    <p id="quitRun" class="warn" hidden>The timer is running right now.</p>
+    <div class="row">
+      <button id="quitNo">Cancel</button>
+      <button id="quitYes" class="danger">Quit</button>
+    </div>
+  </div>
+</div>
+
 <script src="engine.js"></script>
 <script>
 (function () {
@@ -458,6 +481,22 @@
         : 'Remote control is off: ' + a.error + '.';
     });
   }
+  // ---- Quit (asks first)
+  const quitDlg = $('#quitDlg');
+  async function askQuit() {
+    let running = false;
+    try { const s = await window.api.timerGet(); running = s.state === 'running'; } catch (e) { /* ignore */ }
+    $('#quitRun').hidden = !running;
+    quitDlg.hidden = false;
+    $('#quitNo').focus();
+  }
+  $('#quitBtn').onclick = askQuit;
+  $('#quitCtl').onclick = askQuit;
+  $('#quitNo').onclick = () => { quitDlg.hidden = true; };
+  $('#quitYes').onclick = () => { if (window.api.quit) window.api.quit(); };
+  document.addEventListener('keydown', (e) => { if (e.key === 'Escape' && !quitDlg.hidden) quitDlg.hidden = true; });
+  quitDlg.addEventListener('click', (e) => { if (e.target === quitDlg) quitDlg.hidden = true; });
+
   $('#x').onclick = () => window.api.close();
   $('#pin').onclick = async () => {
     const on = await window.api.togglePin();
@@ -980,6 +1019,7 @@
 
   // ---- Colors window: edit the color rules
   if (view === 'colors') {
+    document.title = 'Design';
     const list = $('#ruleList');
     let rules = [];
     const save = () => window.api.rulesSet(rules);
@@ -1075,6 +1115,6 @@
   }
 })();
 </script>
-<script>(function(){var a=document.documentElement.classList.contains('android');var l=a?'a':(/Mac/.test(navigator.userAgent)?'m':'w');var e=document.getElementById('verLine');if(e)e.textContent='Version 1.6.'+l;})();</script>
+<script>(function(){var a=document.documentElement.classList.contains('android');var l=a?'a':(/Mac/.test(navigator.userAgent)?'m':'w');var e=document.getElementById('verLine');if(e)e.textContent='Version 1.7.'+l;})();</script>
 </body>
 </html>

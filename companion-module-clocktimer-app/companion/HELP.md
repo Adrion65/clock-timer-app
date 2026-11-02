@@ -1,6 +1,6 @@
 # Clock & Timer app
 
-Module version 1.6.c
+Module version 1.7.c
 
 Controls the **Clock & Timer** desktop app. The app must be running, and it must be reachable
 from the computer that runs Companion.
