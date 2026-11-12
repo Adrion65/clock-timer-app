@@ -435,7 +435,21 @@ function apiStatus() {
     notice: timer.notice,
     display: displayState(),
     face,
+    baseMs: timer.baseTotal,
+    overtime: overtimeDisplay,
+    endsAtOnDisplay: endOnDisplay,
+    audio: { ...audio },
+    show: showStatus(),
+    look: { ...look },
+    displayTop,
   };
+}
+
+// Run of show as the remote-control API reports it (segment numbers start at 1, 0 means none yet)
+function showStatus() {
+  const segs = show.segments, i = show.index;
+  const nm = (k) => (k >= 0 && k < segs.length ? (segs[k].name.trim() || 'Segment ' + (k + 1)) : '');
+  return { count: segs.length, index: i + 1, name: nm(i), next: nm(i + 1), auto: show.auto, secs: i >= 0 && i < segs.length ? segs[i].secs : 0 };
 }
 
 // Accepts 12:00, 12:00:30, 13:05, 12pm, 1:05 PM  ->  seconds after midnight (or null)
@@ -520,6 +534,83 @@ function handleApi(req, res) {
     case '/face/timer': timerCmd('face', 'timer'); return ok();
     case '/face/clock': timerCmd('face', 'clock'); return ok();
     case '/face/toggle': timerCmd('face', 'toggle'); return ok();
+
+    // Add or take away time (seconds and/or minutes, negative takes away)
+    case '/adjust': {
+      const secs = (+q.get('minutes') || 0) * 60 + (+q.get('seconds') || 0);
+      if (!Number.isFinite(secs) || secs === 0 || Math.abs(secs) > 3600) return fail(400, 'Give minutes and/or seconds between -3600 and 3600 seconds, for example /adjust?minutes=1 or /adjust?minutes=-1');
+      if (timer.state === 'done') return fail(409, 'The time is already up');
+      timerCmd('adjust', Math.round(secs * 1000));
+      return ok();
+    }
+    // Count down to a time of day and start now
+    case '/until': {
+      const t = parseTod(q.get('time'));
+      if (t === null) return fail(400, 'Use ?time=14:45, ?time=14:45:30 or ?time=2:45pm');
+      if (timer.state !== 'idle') return fail(409, 'Reset the timer first');
+      timerCmd('until', t);
+      return ok();
+    }
+
+    // Sound
+    case '/audio/mute': timerCmd('audio', { muted: true }); return ok();
+    case '/audio/unmute': timerCmd('audio', { muted: false }); return ok();
+    case '/audio/toggle': timerCmd('audio', { muted: !audio.muted }); return ok();
+    case '/audio/volume': {
+      const v = parseFloat(q.get('value'));
+      if (!(v >= 0 && v <= 100)) return fail(400, 'Volume must be between 0 and 100, for example /audio/volume?value=60');
+      timerCmd('audio', { volume: v });
+      return ok();
+    }
+    case '/audio/sound': {
+      const n = String(q.get('name') || '').toLowerCase();
+      if (!SOUNDS.includes(n)) return fail(400, 'Sound must be one of: ' + SOUNDS.join(', '));
+      timerCmd('audio', { sound: n });
+      return ok();
+    }
+    case '/audio/repeats': {
+      const v = parseInt(q.get('value'), 10);
+      if (!(v >= 1 && v <= 10)) return fail(400, 'Repeats must be between 1 and 10');
+      timerCmd('audio', { repeats: v });
+      return ok();
+    }
+    case '/audio/test': timerCmd('test'); return ok();
+
+    // Display options
+    case '/overtime/on': case '/overtime/off': case '/overtime/toggle': timerCmd('overtime', route.split('/')[2]); return ok();
+    case '/endshow/on': case '/endshow/off': case '/endshow/toggle': timerCmd('endshow', route.split('/')[2]); return ok();
+    case '/displaytop/on': case '/displaytop/off': case '/displaytop/toggle': timerCmd('displaytop', route.split('/')[2]); return ok();
+
+    // Run of show
+    case '/show/next': timerCmd('show-next'); return ok();
+    case '/show/prev': timerCmd('show-prev'); return ok();
+    case '/show/auto/on': case '/show/auto/off': case '/show/auto/toggle': timerCmd('show-auto', route.split('/')[3]); return ok();
+    case '/show/go': {
+      const n = parseInt(q.get('segment'), 10);
+      if (!(n >= 1 && n <= show.segments.length)) return fail(400, 'Segment must be between 1 and ' + show.segments.length + ', for example /show/go?segment=2');
+      timerCmd('show-go', n - 1);
+      return ok();
+    }
+
+    // How the Timer display window looks. Give any of: font, weight, bg, opacity, text, shadow
+    case '/look': {
+      const patch = {};
+      if (q.has('font')) { const f = q.get('font').toLowerCase(); if (!FONTS.includes(f)) return fail(400, 'Font must be one of: ' + FONTS.join(', ')); patch.font = f; }
+      if (q.has('weight')) { const w = q.get('weight').toLowerCase(); if (!WEIGHTS.includes(w)) return fail(400, 'Weight must be one of: ' + WEIGHTS.join(', ')); patch.weight = w; }
+      if (q.has('bg')) {
+        const b = q.get('bg').trim().toLowerCase();
+        if (b === 'theme') patch.bg = null;
+        else if (/^#?[0-9a-f]{6}$/.test(b)) patch.bg = b[0] === '#' ? b : '#' + b;
+        else return fail(400, 'bg must be a color like 336699 or #336699, or theme');
+      }
+      if (q.has('opacity')) { const o = parseFloat(q.get('opacity')); if (!(o >= 0 && o <= 100)) return fail(400, 'Opacity must be between 0 (see-through) and 100 (solid)'); patch.alpha = o; }
+      if (q.has('text')) { const t = q.get('text').toLowerCase(); if (!TEXTS.includes(t)) return fail(400, 'Text must be one of: ' + TEXTS.join(', ')); patch.text = t; }
+      if (q.has('shadow')) { const s = q.get('shadow').toLowerCase(); if (s !== 'on' && s !== 'off') return fail(400, 'Shadow must be on or off'); patch.shadow = s === 'on'; }
+      if (!Object.keys(patch).length) return fail(400, 'Give at least one of font, weight, bg, opacity, text, shadow');
+      timerCmd('look', patch);
+      return ok();
+    }
+    case '/look/reset': timerCmd('look', { font: 'default', weight: 'light', bg: null, alpha: 100, text: 'auto', shadow: false }); return ok();
 
     default: return fail(404, 'Unknown command: ' + route);
   }

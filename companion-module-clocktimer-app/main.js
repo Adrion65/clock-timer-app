@@ -20,6 +20,29 @@ const readableOn = (n) => {
 
 const DURATIONS = [1, 5, 10, 15, 30, 45, 60, 75, 90, 120]
 
+// Fonts, sounds and options of the app (the ids are what the app's web address expects)
+const FONTS = [
+	{ id: 'default', label: 'System default' }, { id: 'inter', label: 'Inter' }, { id: 'oswald', label: 'Oswald' },
+	{ id: 'barlow', label: 'Barlow Condensed' }, { id: 'bebas', label: 'Bebas Neue' }, { id: 'orbitron', label: 'Orbitron' },
+	{ id: 'sharetech', label: 'Share Tech Mono' }, { id: 'jetbrains', label: 'JetBrains Mono' },
+	{ id: 'robotomono', label: 'Roboto Mono' }, { id: 'spacemono', label: 'Space Mono' },
+]
+const SOUNDS = [
+	{ id: 'beep', label: 'Beep' }, { id: 'chime', label: 'Chime' }, { id: 'bell', label: 'Bell' }, { id: 'alarm', label: 'Alarm' },
+]
+const ON_OFF_TOGGLE = [
+	{ id: 'on', label: 'On' }, { id: 'off', label: 'Off' }, { id: 'toggle', label: 'Toggle' },
+]
+const hex6 = (n) => '#' + (Number(n) & 0xffffff).toString(16).padStart(6, '0')
+const clockText = (ms) => {
+	const s = Math.max(0, Math.round((ms || 0) / 1000))
+	const h = Math.floor(s / 3600)
+	const mi = Math.floor((s % 3600) / 60)
+	const se = s % 60
+	const two = (x) => String(x).padStart(2, '0')
+	return h ? `${h}:${two(mi)}:${two(se)}` : `${two(mi)}:${two(se)}`
+}
+
 const OFFLINE = {
 	state: 'offline',
 	remaining: '--:--',
@@ -37,6 +60,26 @@ const OFFLINE = {
 	connected: 'no',
 	display: '',
 	face: '',
+	duration: '--:--',
+	overtime: '',
+	ends_at_display: '',
+	muted: '',
+	volume: '',
+	sound: '',
+	repeats: '',
+	segment_number: '',
+	segment_count: '',
+	segment_name: '',
+	segment_next: '',
+	segment_auto: '',
+	segment_text: '',
+	font: '',
+	weight: '',
+	background: '',
+	opacity: '',
+	text_color: '',
+	text_shadow: '',
+	display_on_top: '',
 }
 
 export default class ClockTimerInstance extends InstanceBase {
@@ -73,6 +116,26 @@ export default class ClockTimerInstance extends InstanceBase {
 			connected: { name: 'Connected to the app (yes or no)' },
 			display: { name: 'Timer display window (shown, hidden or closed)' },
 			face: { name: 'What the Timer display shows (timer or clock)' },
+			duration: { name: 'Duration the timer resets to (mm:ss or h:mm:ss)' },
+			overtime: { name: 'Count up after zero on the display (on or off)' },
+			ends_at_display: { name: 'Ends-at line on the display (on or off)' },
+			muted: { name: 'Sound muted (on or off)' },
+			volume: { name: 'Sound volume (0 to 100)' },
+			sound: { name: 'Sound (beep, chime, bell or alarm)' },
+			repeats: { name: 'Sound repeats (1 to 10)' },
+			segment_number: { name: 'Run of show: current segment number (0 before the first)' },
+			segment_count: { name: 'Run of show: number of segments' },
+			segment_name: { name: 'Run of show: current segment name' },
+			segment_next: { name: 'Run of show: next segment name' },
+			segment_auto: { name: 'Run of show: start the next segment automatically (on or off)' },
+			segment_text: { name: 'Run of show: like "2 of 4" (empty without a run of show)' },
+			font: { name: 'Timer display font' },
+			weight: { name: 'Timer display font weight (light, regular or bold)' },
+			background: { name: 'Timer display background color (hex, or theme)' },
+			opacity: { name: 'Timer display background opacity (0 = see-through, 100 = solid)' },
+			text_color: { name: 'Timer display text color (auto, light or dark)' },
+			text_shadow: { name: 'Timer display text shadow (on or off)' },
+			display_on_top: { name: 'Timer display stays above other windows (on or off)' },
 		})
 
 		this.setActionDefinitions(this.buildActions())
@@ -219,13 +282,26 @@ export default class ClockTimerInstance extends InstanceBase {
 
 	recheckFeedbacks(force) {
 		const s = this.state
-		const sig = s ? [s.state, s.timeTravel, s.mode, s.color, s.display, s.face].join('|') : 'offline'
+		const sig = s
+			? [
+					s.state, s.timeTravel, s.mode, s.color, s.display, s.face, s.overtime, s.endsAtOnDisplay, s.displayTop,
+					s.audio && s.audio.muted, s.show && s.show.auto, s.show && s.show.index, s.look && s.look.alpha,
+				].join('|')
+			: 'offline'
 		if (!force && sig === this.sig) return
 		this.sig = sig
-		this.checkFeedbacks('connected', 'state_is', 'travel_on', 'mode_is', 'timer_color', 'display_shown', 'face_is')
+		this.checkFeedbacks(
+			'connected', 'state_is', 'travel_on', 'mode_is', 'timer_color', 'display_shown', 'face_is',
+			'overtime_on', 'ends_at_display_on', 'muted_on', 'segment_auto_on', 'segment_is', 'display_top_on', 'see_through_on',
+		)
 	}
 
 	publish(b) {
+		// Older versions of the app do not report everything below, so these may be missing
+		const a = (b && b.audio) || {}
+		const sh = (b && b.show) || {}
+		const lk = (b && b.look) || {}
+		const onOff = (v) => (v === undefined || v === null ? '' : v ? 'on' : 'off')
 		const next = b
 			? {
 					state: b.state,
@@ -244,6 +320,26 @@ export default class ClockTimerInstance extends InstanceBase {
 					connected: 'yes',
 					display: b.display || '',
 					face: b.face || '',
+					duration: clockText(b.baseMs != null ? b.baseMs : b.totalMs),
+					overtime: onOff(b.overtime),
+					ends_at_display: onOff(b.endsAtOnDisplay),
+					muted: onOff(a.muted),
+					volume: a.volume != null ? a.volume : '',
+					sound: a.sound || '',
+					repeats: a.repeats != null ? a.repeats : '',
+					segment_number: sh.index != null ? sh.index : '',
+					segment_count: sh.count != null ? sh.count : '',
+					segment_name: sh.name || '',
+					segment_next: sh.next || '',
+					segment_auto: onOff(sh.auto),
+					segment_text: sh.count && sh.index ? `${sh.index} of ${sh.count}` : '',
+					font: lk.font || '',
+					weight: lk.weight || '',
+					background: lk.bg === undefined ? '' : lk.bg || 'theme',
+					opacity: lk.alpha != null ? lk.alpha : '',
+					text_color: lk.text || '',
+					text_shadow: onOff(lk.shadow),
+					display_on_top: onOff(b.displayTop),
 				}
 			: OFFLINE
 		const changed = {}
@@ -403,6 +499,200 @@ export default class ClockTimerInstance extends InstanceBase {
 					await this.command(`/face/${options.mode}`)
 				},
 			},
+			adjust: {
+				name: 'Add or take away time',
+				description: 'Works while the timer is idle, running or paused. While idle it changes the duration. Reset still goes back to the original duration.',
+				options: [
+					choice('dir', 'Direction', 'add', [
+						{ id: 'add', label: 'Add time' },
+						{ id: 'remove', label: 'Take away time' },
+					]),
+					number('minutes', 'Minutes', 1, 0, 60),
+					number('seconds', 'Seconds', 0, 0, 59),
+				],
+				callback: async ({ options }) => {
+					const secs = (Number(options.minutes) || 0) * 60 + (Number(options.seconds) || 0)
+					if (!secs) return
+					await this.command(`/adjust?seconds=${options.dir === 'remove' ? -secs : secs}`)
+				},
+			},
+			until: {
+				name: 'Count down to a time of day',
+				description: 'Starts the timer counting down to the next time the clock reads this, for example 14:45 or 2:45pm',
+				options: [
+					{ type: 'textinput', id: 'time', label: 'Time of day', default: '12:00', useVariables: true },
+					{ type: 'checkbox', id: 'resetFirst', label: 'Reset the timer first', default: true },
+				],
+				callback: async ({ options }) => {
+					if (options.resetFirst) await this.command('/reset')
+					await this.command(`/until?time=${encodeURIComponent(String(options.time).trim())}`)
+				},
+			},
+			audio_mute: {
+				name: 'Sound mute',
+				options: [
+					choice('mode', 'Sound', 'toggle', [
+						{ id: 'mute', label: 'Mute' },
+						{ id: 'unmute', label: 'Unmute' },
+						{ id: 'toggle', label: 'Toggle' },
+					]),
+				],
+				callback: async ({ options }) => {
+					await this.command(`/audio/${options.mode}`)
+				},
+			},
+			audio_volume: {
+				name: 'Sound volume',
+				options: [
+					choice('mode', 'Do this', 'set', [
+						{ id: 'set', label: 'Set the volume to' },
+						{ id: 'change', label: 'Change the volume by' },
+					]),
+					number('value', 'Volume (0 to 100), or change (-100 to 100)', 80, -100, 100),
+				],
+				callback: async ({ options }) => {
+					const current = this.state && this.state.audio ? Number(this.state.audio.volume) : 80
+					const next = options.mode === 'change' ? current + Number(options.value) : Number(options.value)
+					await this.command(`/audio/volume?value=${Math.min(100, Math.max(0, Math.round(next)))}`)
+				},
+			},
+			audio_sound: {
+				name: 'Sound choice',
+				options: [choice('name', 'Sound', 'beep', SOUNDS)],
+				callback: async ({ options }) => {
+					await this.command(`/audio/sound?name=${options.name}`)
+				},
+			},
+			audio_repeats: {
+				name: 'Sound repeats',
+				options: [number('value', 'Times the sound plays', 3, 1, 10)],
+				callback: async ({ options }) => {
+					await this.command(`/audio/repeats?value=${Math.round(Number(options.value))}`)
+				},
+			},
+			audio_test: {
+				name: 'Play the end sound (test)',
+				options: [],
+				callback: async () => {
+					await this.command('/audio/test')
+				},
+			},
+			overtime: {
+				name: 'Count up after zero on the display',
+				options: [choice('mode', 'Count up', 'toggle', ON_OFF_TOGGLE)],
+				callback: async ({ options }) => {
+					await this.command(`/overtime/${options.mode}`)
+				},
+			},
+			ends_at_display: {
+				name: 'Ends-at line on the display',
+				description: 'The small "ends at 2:45 PM" line under the countdown',
+				options: [choice('mode', 'Ends-at line', 'toggle', ON_OFF_TOGGLE)],
+				callback: async ({ options }) => {
+					await this.command(`/endshow/${options.mode}`)
+				},
+			},
+			display_top: {
+				name: 'Timer display stays on top',
+				description: 'Keeps the Timer display window above other windows',
+				options: [choice('mode', 'On top', 'toggle', ON_OFF_TOGGLE)],
+				callback: async ({ options }) => {
+					await this.command(`/displaytop/${options.mode}`)
+				},
+			},
+			show_next: {
+				name: 'Run of show: next segment',
+				options: [],
+				callback: async () => {
+					await this.command('/show/next')
+				},
+			},
+			show_prev: {
+				name: 'Run of show: previous segment',
+				options: [],
+				callback: async () => {
+					await this.command('/show/prev')
+				},
+			},
+			show_go: {
+				name: 'Run of show: go to segment',
+				description: 'Segment numbers start at 1',
+				options: [number('segment', 'Segment number', 1, 1, 99)],
+				callback: async ({ options }) => {
+					await this.command(`/show/go?segment=${Math.round(Number(options.segment))}`)
+				},
+			},
+			show_auto: {
+				name: 'Run of show: start the next segment automatically',
+				options: [choice('mode', 'Automatic', 'toggle', ON_OFF_TOGGLE)],
+				callback: async ({ options }) => {
+					await this.command(`/show/auto/${options.mode}`)
+				},
+			},
+			look: {
+				name: 'Timer display look',
+				description: 'Changes how the Timer display window looks. Leave a setting on "No change" to keep it as it is.',
+				options: [
+					choice('font', 'Font', 'keep', [{ id: 'keep', label: 'No change' }, ...FONTS]),
+					choice('weight', 'Weight', 'keep', [
+						{ id: 'keep', label: 'No change' },
+						{ id: 'light', label: 'Light' },
+						{ id: 'regular', label: 'Regular' },
+						{ id: 'bold', label: 'Bold' },
+					]),
+					choice('bg', 'Background', 'keep', [
+						{ id: 'keep', label: 'No change' },
+						{ id: 'theme', label: 'Normal dark or light background' },
+						{ id: 'color', label: 'The color below' },
+					]),
+					{ type: 'colorpicker', id: 'color', label: 'Background color (used when "The color below" is chosen)', default: 0x336699 },
+					{ type: 'checkbox', id: 'setOpacity', label: 'Change the opacity', default: false },
+					number('opacity', 'Opacity (0 = see-through, 100 = solid)', 100, 0, 100),
+					choice('text', 'Text color', 'keep', [
+						{ id: 'keep', label: 'No change' },
+						{ id: 'auto', label: 'Automatic' },
+						{ id: 'light', label: 'Light' },
+						{ id: 'dark', label: 'Dark' },
+					]),
+					choice('shadow', 'Text shadow', 'keep', [
+						{ id: 'keep', label: 'No change' },
+						{ id: 'on', label: 'On' },
+						{ id: 'off', label: 'Off' },
+					]),
+				],
+				callback: async ({ options }) => {
+					const q = new URLSearchParams()
+					if (options.font !== 'keep') q.set('font', options.font)
+					if (options.weight !== 'keep') q.set('weight', options.weight)
+					if (options.bg === 'theme') q.set('bg', 'theme')
+					if (options.bg === 'color') q.set('bg', hex6(options.color).slice(1))
+					if (options.setOpacity) q.set('opacity', String(Math.round(Number(options.opacity))))
+					if (options.text !== 'keep') q.set('text', options.text)
+					if (options.shadow !== 'keep') q.set('shadow', options.shadow)
+					if (![...q.keys()].length) {
+						this.log('warn', 'Timer display look: nothing to change. Pick at least one setting.')
+						return
+					}
+					await this.command(`/look?${q}`)
+				},
+			},
+			look_opacity_change: {
+				name: 'Timer display opacity: change by',
+				description: 'Makes the display background more see-through (negative) or more solid (positive)',
+				options: [number('delta', 'Change (-100 to 100)', 10, -100, 100)],
+				callback: async ({ options }) => {
+					const current = this.state && this.state.look ? Number(this.state.look.alpha) : 100
+					await this.command(`/look?opacity=${Math.min(100, Math.max(0, Math.round(current + Number(options.delta))))}`)
+				},
+			},
+			look_reset: {
+				name: 'Timer display look: back to normal',
+				description: 'System font, light weight, normal background, solid, automatic text color, no shadow',
+				options: [],
+				callback: async () => {
+					await this.command('/look/reset')
+				},
+			},
 			end_time_clear: {
 				name: 'Clear end time',
 				options: [],
@@ -500,6 +790,56 @@ export default class ClockTimerInstance extends InstanceBase {
 				],
 				callback: ({ options }) => !!this.state && this.state.face === options.face,
 			},
+			overtime_on: {
+				type: 'boolean',
+				name: 'Count up after zero is on',
+				defaultStyle: { bgcolor: BLUE, color: WHITE },
+				options: [],
+				callback: () => !!this.state && this.state.overtime === true,
+			},
+			ends_at_display_on: {
+				type: 'boolean',
+				name: 'Ends-at line on the display is on',
+				defaultStyle: { bgcolor: BLUE, color: WHITE },
+				options: [],
+				callback: () => !!this.state && this.state.endsAtOnDisplay === true,
+			},
+			muted_on: {
+				type: 'boolean',
+				name: 'Sound is muted',
+				defaultStyle: { bgcolor: ORANGE, color: WHITE },
+				options: [],
+				callback: () => !!this.state && !!this.state.audio && this.state.audio.muted === true,
+			},
+			segment_auto_on: {
+				type: 'boolean',
+				name: 'Run of show: automatic next segment is on',
+				defaultStyle: { bgcolor: BLUE, color: WHITE },
+				options: [],
+				callback: () => !!this.state && !!this.state.show && this.state.show.auto === true,
+			},
+			segment_is: {
+				type: 'boolean',
+				name: 'Run of show: current segment is',
+				defaultStyle: { bgcolor: GREEN, color: WHITE },
+				options: [{ type: 'number', id: 'segment', label: 'Segment number', default: 1, min: 1, max: 99, clampValues: true }],
+				callback: ({ options }) => !!this.state && !!this.state.show && this.state.show.index === Number(options.segment),
+			},
+			display_top_on: {
+				type: 'boolean',
+				name: 'Timer display stays on top is on',
+				defaultStyle: { bgcolor: BLUE, color: WHITE },
+				options: [],
+				callback: () => !!this.state && this.state.displayTop === true,
+			},
+			see_through_on: {
+				type: 'boolean',
+				name: 'Timer display background is see-through (opacity below 100)',
+				defaultStyle: { bgcolor: BLUE, color: WHITE },
+				options: [],
+				callback: () => !!this.state && !!this.state.look && Number(this.state.look.alpha) < 100,
+			},
+
 			timer_color: {
 				type: 'advanced',
 				name: 'Timer color',
@@ -627,6 +967,101 @@ export default class ClockTimerInstance extends InstanceBase {
 			add('ends_at', 'Real time it will finish', `ENDS AT\\n${v('ends_at')}`, GREY, []),
 		]
 
+
+			// Adjust time
+			const adjust = [
+				add('adjust_minus1', 'Take away 1 minute', '-1\\nMIN', BLUE, [{ actionId: 'adjust', options: { dir: 'remove', minutes: 1, seconds: 0 } }]),
+				add('adjust_plus1', 'Add 1 minute', '+1\\nMIN', BLUE, [{ actionId: 'adjust', options: { dir: 'add', minutes: 1, seconds: 0 } }]),
+				add('adjust_minus5', 'Take away 5 minutes', '-5\\nMIN', BLUE, [{ actionId: 'adjust', options: { dir: 'remove', minutes: 5, seconds: 0 } }]),
+				add('adjust_plus5', 'Add 5 minutes', '+5\\nMIN', BLUE, [{ actionId: 'adjust', options: { dir: 'add', minutes: 5, seconds: 0 } }]),
+				add('adjust_plus30s', 'Add 30 seconds', '+30\\nSEC', BLUE, [{ actionId: 'adjust', options: { dir: 'add', minutes: 0, seconds: 30 } }]),
+				add('duration_readout', 'Duration the timer resets to', `RESETS TO\\n${v('duration')}`, GREY, []),
+				add('until_noon', 'Count down to 12:00', 'COUNT TO\\n12:00', BLUE, [{ actionId: 'until', options: { time: '12:00', resetFirst: true } }]),
+			]
+
+			// Run of show
+			const showPresets = [
+				add('show_readout', 'Current segment', `${v('segment_text')}\\n${v('segment_name')}`, GREY, [], [{ feedbackId: 'timer_color', options: { apply: 'text' } }]),
+				add('show_next', 'Next segment', 'NEXT\\nSEGMENT', GREEN, [{ actionId: 'show_next', options: {} }]),
+				add('show_prev', 'Previous segment', 'PREVIOUS\\nSEGMENT', GREY, [{ actionId: 'show_prev', options: {} }]),
+				add('show_next_name', 'Name of the next segment', `UP NEXT\\n${v('segment_next')}`, GREY, []),
+				add(
+					'show_auto',
+					'Start the next segment automatically',
+					`AUTO\\nNEXT\\n${v('segment_auto')}`,
+					GREY,
+					[{ actionId: 'show_auto', options: { mode: 'toggle' } }],
+					[{ feedbackId: 'segment_auto_on', options: {}, style: { bgcolor: BLUE, color: WHITE } }],
+				),
+			]
+
+			// Sound
+			const sound = [
+				add(
+					'sound_mute',
+					'Mute / unmute',
+					`SOUND\\nMUTE\\n${v('muted')}`,
+					GREY,
+					[{ actionId: 'audio_mute', options: { mode: 'toggle' } }],
+					[{ feedbackId: 'muted_on', options: {}, style: { bgcolor: ORANGE, color: WHITE } }],
+				),
+				add('sound_volume', 'Volume readout', `VOLUME\\n${v('volume')}`, GREY, []),
+				add('sound_up', 'Volume up', 'VOLUME\\n+10', BLUE, [{ actionId: 'audio_volume', options: { mode: 'change', value: 10 } }]),
+				add('sound_down', 'Volume down', 'VOLUME\\n-10', BLUE, [{ actionId: 'audio_volume', options: { mode: 'change', value: -10 } }]),
+				add('sound_test', 'Play the end sound', 'TEST\\nSOUND', GREY, [{ actionId: 'audio_test', options: {} }]),
+				...['beep', 'chime', 'bell', 'alarm'].map((s) =>
+					add(`sound_${s}`, `Use the ${s} sound`, s.toUpperCase(), GREY, [{ actionId: 'audio_sound', options: { name: s } }]),
+				),
+			]
+
+			// What the display shows
+			const displayOptions = [
+				add(
+					'ends_at_toggle',
+					'Ends-at line on the display',
+					`ENDS-AT\\nLINE\\n${v('ends_at_display')}`,
+					GREY,
+					[{ actionId: 'ends_at_display', options: { mode: 'toggle' } }],
+					[{ feedbackId: 'ends_at_display_on', options: {}, style: { bgcolor: BLUE, color: WHITE } }],
+				),
+				add(
+					'overtime_toggle',
+					'Count up after zero on the display',
+					`COUNT UP\\n${v('overtime')}`,
+					GREY,
+					[{ actionId: 'overtime', options: { mode: 'toggle' } }],
+					[{ feedbackId: 'overtime_on', options: {}, style: { bgcolor: BLUE, color: WHITE } }],
+				),
+				add(
+					'top_toggle',
+					'Display stays on top',
+					`DISPLAY\\nON TOP\\n${v('display_on_top')}`,
+					GREY,
+					[{ actionId: 'display_top', options: { mode: 'toggle' } }],
+					[{ feedbackId: 'display_top_on', options: {}, style: { bgcolor: BLUE, color: WHITE } }],
+				),
+			]
+
+			// How the display looks
+			const lookNoChange = { font: 'keep', weight: 'keep', bg: 'keep', color: 0x336699, setOpacity: false, opacity: 100, text: 'keep', shadow: 'keep' }
+			const look = [
+				add('look_clear', 'See-through background', 'SEE\\nTHROUGH', BLUE, [{ actionId: 'look', options: { ...lookNoChange, setOpacity: true, opacity: 0 } }],
+					[{ feedbackId: 'see_through_on', options: {}, style: { bgcolor: ORANGE, color: WHITE } }]),
+				add('look_solid', 'Solid background', 'SOLID', BLUE, [{ actionId: 'look', options: { ...lookNoChange, setOpacity: true, opacity: 100 } }]),
+				add('look_opacity_readout', 'Opacity readout', `OPACITY\\n${v('opacity')}%`, GREY, []),
+				add('look_more_clear', 'More see-through', 'OPACITY\\n-10', BLUE, [{ actionId: 'look_opacity_change', options: { delta: -10 } }]),
+				add('look_more_solid', 'More solid', 'OPACITY\\n+10', BLUE, [{ actionId: 'look_opacity_change', options: { delta: 10 } }]),
+				add('look_shadow', 'Text shadow on', 'SHADOW\\nON', GREY, [{ actionId: 'look', options: { ...lookNoChange, shadow: 'on' } }]),
+				add('look_noshadow', 'Text shadow off', 'SHADOW\\nOFF', GREY, [{ actionId: 'look', options: { ...lookNoChange, shadow: 'off' } }]),
+				add('look_text_light', 'Light text', 'TEXT\\nLIGHT', GREY, [{ actionId: 'look', options: { ...lookNoChange, text: 'light' } }]),
+				add('look_text_dark', 'Dark text', 'TEXT\\nDARK', GREY, [{ actionId: 'look', options: { ...lookNoChange, text: 'dark' } }]),
+				add('look_reset', 'Look back to normal', 'LOOK\\nRESET', GREY, [{ actionId: 'look_reset', options: {} }]),
+			]
+			const fonts = FONTS.map((f) =>
+				add(`font_${f.id}`, `Font: ${f.label}`, f.label.toUpperCase().replace(' ', '\\n'), GREY, [{ actionId: 'look', options: { ...lookNoChange, font: f.id } }]),
+			)
+
+
 		const structure = [
 			{
 				id: 'timer',
@@ -636,6 +1071,12 @@ export default class ClockTimerInstance extends InstanceBase {
 					{ id: 'durations', type: 'simple', name: 'Durations', presets: durations },
 					{ id: 'travel', type: 'simple', name: 'Time travel speed', presets: travel },
 					{ id: 'endtime', type: 'simple', name: 'End time', presets: endTime },
+					{ id: 'adjust', type: 'simple', name: 'Add or take away time', presets: adjust },
+					{ id: 'show', type: 'simple', name: 'Run of show', presets: showPresets },
+					{ id: 'sound', type: 'simple', name: 'Sound', presets: sound },
+					{ id: 'displayopts', type: 'simple', name: 'Display options', presets: displayOptions },
+					{ id: 'look', type: 'simple', name: 'Display look', presets: look },
+					{ id: 'fonts', type: 'simple', name: 'Display fonts', presets: fonts },
 				],
 			},
 		]
