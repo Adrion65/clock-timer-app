@@ -31,8 +31,16 @@ jobs:
       - name: Name the file
         run: |
           ls -la
-          FILE=$(ls *.tgz | head -1)
-          cp "$FILE" Clock-Timer-Companion-1.8.c.tgz
+          # The build tool leaves a pkg folder and, depending on its version, also a .tgz.
+          # If there is no .tgz, pack the pkg folder ourselves (this is the format Companion loads).
+          FILE=$(ls *.tgz 2>/dev/null | head -1 || true)
+          if [ -n "$FILE" ] && [ "$FILE" != "Clock-Timer-Companion-1.8.c.tgz" ]; then
+            cp "$FILE" Clock-Timer-Companion-1.8.c.tgz
+          elif [ -z "$FILE" ]; then
+            test -f pkg/companion/manifest.json
+            tar -czf Clock-Timer-Companion-1.8.c.tgz pkg
+          fi
+          tar -tzf Clock-Timer-Companion-1.8.c.tgz | head -20
 
       - name: Keep the finished module
         uses: actions/upload-artifact@v7
