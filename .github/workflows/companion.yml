@@ -1,0 +1,42 @@
+name: Build Companion module
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main, master]
+    paths:
+      - 'companion-module-clocktimer-app/**'
+      - '.github/workflows/companion.yml'
+
+jobs:
+  module:
+    name: Companion module package
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: companion-module-clocktimer-app
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Install tools
+        run: npm install
+
+      - name: Build the module package
+        run: npm run package
+
+      - name: Name the file
+        run: |
+          ls -la
+          FILE=$(ls *.tgz | head -1)
+          cp "$FILE" Clock-Timer-Companion-1.8.c.tgz
+
+      - name: Keep the finished module
+        uses: actions/upload-artifact@v7
+        with:
+          name: Clock-Timer-Companion-1.8.c
+          path: companion-module-clocktimer-app/Clock-Timer-Companion-1.8.c.tgz
+          if-no-files-found: error
