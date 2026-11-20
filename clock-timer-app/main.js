@@ -15,6 +15,7 @@ const SIZES = {
   show:     { width: 640, height: 520, minWidth: 560, minHeight: 340 },
   presets:  { width: 340, height: 540, minWidth: 300, minHeight: 260 },
   colors:   { width: 470, height: 680, minWidth: 420, minHeight: 300 },
+  network:  { width: 460, height: 520, minWidth: 400, minHeight: 360 },
   help:     { width: 640, height: 700, minWidth: 420, minHeight: 360 },
 };
 
@@ -69,6 +70,7 @@ function loadShow() {
 function saveShow() {
   try { fs.writeFileSync(showFile(), JSON.stringify({ segments: show.segments, auto: show.auto })); } catch (e) { /* ignore */ }
 }
+let net = { mode: null, iface: '', port: 8787 }; // which connection the remote control listens on (null mode = default)
 let barOn = true; // show the countdown bar on the display
 let endOnDisplay = true; // show "ends at ..." under the countdown on the display
 // How the Timer display window looks (font, background, text). Only the Timer display uses this.
@@ -89,12 +91,20 @@ function cleanLook(a, base) {
   if (typeof a.shadow === 'boolean') o.shadow = a.shadow;
   return o;
 }
+function cleanNet(a, base) {
+  const o = { ...base };
+  if (!a || typeof a !== 'object') return o;
+  if (['local', 'all', 'iface'].includes(a.mode)) o.mode = a.mode;
+  if (typeof a.iface === 'string') o.iface = a.iface.slice(0, 120);
+  if (Number.isInteger(a.port) && a.port >= 1024 && a.port <= 65535) o.port = a.port;
+  return o;
+}
 const settingsFile = () => path.join(app.getPath('userData'), 'settings.json');
 function loadSettings() {
-  try { const s = JSON.parse(fs.readFileSync(settingsFile(), 'utf8')); if (typeof s.overtimeDisplay === 'boolean') overtimeDisplay = s.overtimeDisplay; if (typeof s.endOnDisplay === 'boolean') endOnDisplay = s.endOnDisplay; if (typeof s.barOn === 'boolean') barOn = s.barOn; const p = cleanPresets(s.presets); if (p) presets = p; if (s.look) look = cleanLook(s.look, look); if (typeof s.displayTop === 'boolean') displayTop = s.displayTop; } catch (e) { /* defaults */ }
+  try { const s = JSON.parse(fs.readFileSync(settingsFile(), 'utf8')); if (typeof s.overtimeDisplay === 'boolean') overtimeDisplay = s.overtimeDisplay; if (typeof s.endOnDisplay === 'boolean') endOnDisplay = s.endOnDisplay; if (typeof s.barOn === 'boolean') barOn = s.barOn; if (s.net) net = cleanNet(s.net, net); const p = cleanPresets(s.presets); if (p) presets = p; if (s.look) look = cleanLook(s.look, look); if (typeof s.displayTop === 'boolean') displayTop = s.displayTop; } catch (e) { /* defaults */ }
 }
 function saveSettings() {
-  try { fs.writeFileSync(settingsFile(), JSON.stringify({ overtimeDisplay, endOnDisplay, barOn, presets, look, displayTop })); } catch (e) { /* ignore */ }
+  try { fs.writeFileSync(settingsFile(), JSON.stringify({ overtimeDisplay, endOnDisplay, barOn, net, presets, look, displayTop })); } catch (e) { /* ignore */ }
 }
 
 let face = 'timer'; // what the Timer display windows show: 'timer' or 'clock'
@@ -394,10 +404,11 @@ ipcMain.handle('rules-reset', () => {
 // Kiosk mode (for a dedicated screen such as a Raspberry Pi): no launcher, the Timer display fills the screen,
 // the remote-control address is open to the local network, and Companion does the controlling.
 const KIOSK = process.argv.includes('--kiosk') || process.env.CLOCK_TIMER_KIOSK === '1';
-const API_PORT = Number(process.env.CLOCK_TIMER_PORT) || 8787;
-const API_HOST = process.env.CLOCK_TIMER_HOST || (KIOSK ? '0.0.0.0' : '127.0.0.1');
+// Launch settings (CLOCK_TIMER_HOST / CLOCK_TIMER_PORT) win over the Network window, which is saved in settings.json.
+const ENV_HOST = process.env.CLOCK_TIMER_HOST || '';
+const ENV_PORT = Number(process.env.CLOCK_TIMER_PORT) || 0;
 const LOOPBACK = ['127.0.0.1', 'localhost', '::1'];
-const api = { ok: false, host: API_HOST, port: API_PORT, error: '' };
+const api = { ok: false, host: '', port: 8787, error: '', waiting: '', mode: '', iface: '' };
 let apiReadyResolve;
 const apiReady = new Promise((r) => { apiReadyResolve = r; });
 
@@ -486,7 +497,7 @@ function handleApi(req, res) {
   // Only tools like Companion may call this. Web pages in a browser cannot (they send Origin or
   // Sec-Fetch-* headers), and on loopback the Host header must match (blocks DNS-rebinding tricks).
   if (req.headers.origin || req.headers['sec-fetch-site']) return fail(403, 'Browser requests are not allowed');
-  if (LOOPBACK.includes(API_HOST)) {
+  if (LOOPBACK.includes(api.host)) {
     const host = String(req.headers.host || '').replace(/:\d+$/, '').replace(/^\[|\]$/g, '');
     if (!LOOPBACK.includes(host)) return fail(403, 'Unexpected Host header');
   }
@@ -627,25 +638,111 @@ function handleApi(req, res) {
   }
 }
 
-function startApi() {
-  const srv = http.createServer((req, res) => {
-    try { handleApi(req, res); }
-    catch (e) { res.writeHead(500); res.end('{"ok":false,"error":"Internal error"}'); }
-  });
-  srv.on('error', (e) => {
-    api.ok = false;
-    api.error = e.code === 'EADDRINUSE' ? 'port ' + API_PORT + ' is already in use' : String(e.message);
-    apiReadyResolve();
-  });
-  srv.listen(API_PORT, API_HOST, () => { api.ok = true; api.error = ''; apiReadyResolve(); });
-}
-// Addresses of this computer on the local network, shown on the kiosk screen so Companion can be pointed at it
-function lanAddresses() {
+// Network connections of this computer (IPv4), so the remote control can listen on just one of them
+function interfaces() {
   const out = [];
-  for (const list of Object.values(os.networkInterfaces())) for (const i of list || []) if (i.family === 'IPv4' && !i.internal) out.push(i.address);
+  for (const [name, list] of Object.entries(os.networkInterfaces())) {
+    for (const i of list || []) if ((i.family === 'IPv4' || i.family === 4) && !i.internal) out.push({ name, address: i.address });
+  }
   return out;
 }
-ipcMain.handle('api-info', async () => { await apiReady; return { ...api, ips: lanAddresses(), kiosk: KIOSK }; });
+function lanAddresses() { return interfaces().map((i) => i.address); }
+const defaultNetMode = () => (KIOSK ? 'all' : 'local');
+// What the saved choice means right now. A chosen connection is found by its name, so a changed address is followed.
+function netPlan() {
+  const port = ENV_PORT || net.port;
+  if (ENV_HOST) return { host: ENV_HOST, port, mode: 'env', iface: '' };
+  const mode = net.mode || defaultNetMode();
+  if (mode === 'all') return { host: '0.0.0.0', port, mode, iface: '' };
+  if (mode === 'iface') {
+    const hit = interfaces().find((i) => i.name === net.iface);
+    return { host: hit ? hit.address : '', port, mode, iface: net.iface };
+  }
+  return { host: '127.0.0.1', port, mode: 'local', iface: '' };
+}
+
+let srv = null;
+let bindKey = '';
+function stopApi() {
+  const s = srv;
+  srv = null; bindKey = '';
+  if (!s) return Promise.resolve();
+  return new Promise((resolve) => {
+    try { s.close(() => resolve()); if (s.closeAllConnections) s.closeAllConnections(); } catch (e) { resolve(); }
+  });
+}
+async function doApply() {
+  const plan = netPlan();
+  api.port = plan.port; api.mode = plan.mode; api.iface = plan.iface;
+  if (!plan.host) {
+    await stopApi();
+    api.ok = false; api.host = ''; api.error = '';
+    api.waiting = 'waiting for \u201c' + plan.iface + '\u201d to be connected';
+    apiReadyResolve();
+    return;
+  }
+  const key = plan.host + ':' + plan.port;
+  if (key === bindKey && api.ok) return;
+  await stopApi();
+  bindKey = key; api.host = plan.host; api.waiting = ''; api.ok = false; api.error = '';
+  await new Promise((resolve) => {
+    const s = http.createServer((req, res) => {
+      try { handleApi(req, res); }
+      catch (e) { res.writeHead(500); res.end('{"ok":false,"error":"Internal error"}'); }
+    });
+    srv = s;
+    s.on('error', (e) => {
+      if (srv !== s) return;
+      api.ok = false; bindKey = '';
+      api.error = e.code === 'EADDRINUSE' ? 'port ' + plan.port + ' is already in use'
+        : e.code === 'EADDRNOTAVAIL' ? 'that address is not available on this computer' : String(e.message);
+      apiReadyResolve(); resolve();
+    });
+    s.listen(plan.port, plan.host, () => { if (srv !== s) return resolve(); api.ok = true; api.error = ''; apiReadyResolve(); resolve(); });
+  });
+}
+let applyChain = Promise.resolve();
+function applyApi() {
+  const run = applyChain.then(doApply);
+  applyChain = run.catch(() => {});
+  return run;
+}
+function startApi() {
+  applyApi();
+  // Follow the chosen connection if it appears, disappears or gets a new address; retry after a failure
+  setInterval(() => { if (!ENV_HOST && (net.mode === 'iface' || !api.ok)) applyApi(); }, 5000);
+}
+
+ipcMain.handle('api-info', async () => {
+  await apiReady;
+  const ips = api.host === '0.0.0.0' ? lanAddresses() : api.host ? [api.host] : [];
+  return { ...api, ips, kiosk: KIOSK };
+});
+ipcMain.handle('net-get', async () => {
+  await apiReady;
+  return {
+    config: { mode: net.mode || defaultNetMode(), iface: net.iface, port: net.port },
+    interfaces: interfaces(),
+    api: { ...api },
+    lockedHost: !!ENV_HOST, lockedPort: !!ENV_PORT,
+    kiosk: KIOSK,
+  };
+});
+ipcMain.handle('net-set', async (_e, cfg) => {
+  const prev = { ...net };
+  const next = cleanNet(cfg, net);
+  if (next.mode === 'iface' && !interfaces().some((i) => i.name === next.iface)) return { ok: false, error: 'That network connection is not available right now.' };
+  net = next;
+  await applyApi();
+  if (!api.ok && !ENV_HOST) {
+    const error = api.error || 'Could not start the remote control there.';
+    net = prev;
+    await applyApi();
+    return { ok: false, error };
+  }
+  saveSettings();
+  return { ok: true };
+});
 
 // ---- Windows
 // Keep pinned windows above other apps. On Windows the plain "floating" level can be covered by other
@@ -729,7 +826,7 @@ function create(view, opts = {}) {
 
 ipcMain.handle('open', (_e, view) => {
   if (!SIZES[view]) return;
-  if (['help', 'audio', 'show', 'presets'].includes(view)) {
+  if (['help', 'audio', 'show', 'presets', 'network'].includes(view)) {
     // Only one help or audio window: bring the existing one forward
     const existing = BrowserWindow.getAllWindows().find((w) => roles.get(w.webContents.id) === view);
     if (existing) { existing.focus(); return; }

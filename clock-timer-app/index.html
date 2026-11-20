@@ -39,6 +39,7 @@
   body[data-view="audio"] #audioWin,
   body[data-view="show"] #showWin,
   body[data-view="presets"] #presetsWin,
+  body[data-view="network"] #netWin,
   body[data-view="help"] #help { display: block; }
 
   .digits { font-weight: 250; font-variant-numeric: tabular-nums; line-height: 1; letter-spacing: -0.02em; margin: 0; }
@@ -71,7 +72,7 @@
   :focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
   select { font: inherit; font-size: 13px; color: var(--text); background: var(--surface); border: 1px solid var(--line); border-radius: 8px; padding: 4px 8px; -webkit-app-region: no-drag; }
   body[data-view="show"], body[data-view="presets"] { align-items: flex-start; }
-  #showWin, #presetsWin { text-align: left; -webkit-app-region: no-drag; overflow-y: auto; max-height: calc(100vh - 28px); }
+  #showWin, #presetsWin, #netWin { text-align: left; -webkit-app-region: no-drag; overflow-y: auto; max-height: calc(100vh - 28px); }
   #showWin h2, #presetsWin h2 { font-size: 16px; font-weight: 500; margin: 0 0 4px; }
   #showWin .hint, #presetsWin .hint { color: var(--muted); font-size: 12px; line-height: 1.4; margin: 0 0 10px; }
   .seg { display: grid; grid-template-columns: 20px minmax(80px, 1fr) 74px 92px auto; gap: 6px; align-items: center; margin: 5px 0; padding: 4px 6px; border-radius: 8px; border: 1px solid transparent; }
@@ -182,6 +183,17 @@
   @keyframes ctlHint { 0%, 70% { opacity: 1; } 100% { opacity: 0; } }
   @media (prefers-reduced-motion: reduce) { body[data-view="display"] #ctl { animation: none; transition: none; } }
   .quit { color: var(--alert); }
+  #netList { display: flex; flex-direction: column; gap: 6px; margin: 10px 0; }
+  #netList label { display: flex; align-items: center; gap: 10px; padding: 8px 12px; border: 1px solid var(--line); border-radius: 8px; background: var(--surface); font-size: 14px; cursor: pointer; }
+  #netList label.sel { border-color: var(--accent); outline: 1px solid var(--accent); }
+  #netList label.gone { opacity: .6; }
+  #netList input[type=radio] { width: auto; padding: 0; margin: 0; accent-color: var(--accent); }
+  #netList .addr { color: var(--muted); font-variant-numeric: tabular-nums; margin-left: auto; }
+  #netPort { width: 90px; padding: 4px 8px; font-size: 14px; }
+  #netState { font-size: 14px; margin: 12px 0 4px; }
+  #netWarn { font-size: 12px; color: var(--muted); min-height: 1.2em; }
+  #netMsg { font-size: 13px; color: var(--muted); }
+  #netMsg.err { color: var(--alert); font-weight: 600; }
   #quitDlg { position: fixed; inset: 0; z-index: 100; display: flex; align-items: center; justify-content: center; background: rgba(0,0,0,.55); -webkit-app-region: no-drag; }
   #quitDlg[hidden] { display: none; }
   #quitDlg .box { width: min(360px, 90vw); background: var(--surface); color: var(--text); border: 1px solid var(--line); border-radius: 14px; padding: 18px 18px 14px; text-align: left; box-shadow: 0 10px 40px rgba(0,0,0,.5); }
@@ -238,7 +250,7 @@
   </div>
   <p class="hint" id="verLine" style="text-align:center;margin-top:14px"></p>
   <p class="note" id="apiNote"></p>
-  <div class="row" style="margin-top:0"><button class="chip" id="newHelp">Remote control help</button><button class="chip quit" id="quitBtn">Quit Clock &amp; Timer</button></div>
+  <div class="row" style="margin-top:0"><button class="chip" id="newNet">Network</button><button class="chip" id="newHelp">Remote control help</button><button class="chip quit" id="quitBtn">Quit Clock &amp; Timer</button></div>
 </section>
 
 <section id="clock">
@@ -344,6 +356,17 @@
   <div id="showFoot"></div>
 </section>
 
+<section id="netWin">
+  <h2>Network</h2>
+  <p class="hint">Choose which network connection Companion and other tools use to reach this timer. Pick one connection (for example the wired production network) to keep the timer off the others.</p>
+  <p class="hint" id="netLocked" hidden></p>
+  <div id="netList" role="radiogroup" aria-label="Network connection"></div>
+  <div class="row" style="justify-content:flex-start"><label for="netPort">Port</label><input id="netPort" type="number" min="1024" max="65535" step="1" inputmode="numeric"></div>
+  <p id="netState"></p>
+  <p id="netWarn"></p>
+  <div class="row" style="justify-content:flex-start"><button id="netApply" class="primary">Apply</button><span id="netMsg" role="status"></span></div>
+</section>
+
 <section id="presetsWin">
   <h2>Duration buttons</h2>
   <p class="hint">Minutes, from 1 to 999. Up to 16 buttons; they are shown in order from shortest to longest.</p>
@@ -373,8 +396,9 @@
   <table id="readTable"></table>
 
   <h3>Changing the address</h3>
-  <p>The app listens on this computer only, on port 8787. To use another port, or to let Companion on a different computer connect, start the app from a terminal with these variables set: <code>CLOCK_TIMER_PORT=9000</code> for the port, and <code>CLOCK_TIMER_HOST=0.0.0.0</code> to accept connections from your network. On a Mac, for example: <code>CLOCK_TIMER_PORT=9000 "/Applications/Clock &amp; Timer.app/Contents/MacOS/Clock &amp; Timer"</code></p>
-  <p>Allowing your network means anyone on it could control the timer, so only do that on a network you trust.</p>
+  <p>Open <strong>Network</strong> from the first window to choose which network connection the timer listens on (this computer only, every connection, or one specific connection) and the port. Companion then connects to the address shown there. The choice is remembered.</p>
+  <p>Allowing a network means anyone on it could control the timer, so only do that on a network you trust.</p>
+  <p>For scripts, you can also start the app from a terminal with <code>CLOCK_TIMER_HOST</code> (for example <code>0.0.0.0</code>) and <code>CLOCK_TIMER_PORT</code> (for example <code>9000</code>) set. Those override the Network window while they are set.</p>
 
   <h3>Safety</h3>
   <p>The address only answers programs, not web pages in a browser, so a website can't press your timer buttons.</p>
@@ -460,6 +484,7 @@
   $('#newDisplay').onclick = () => window.api.open('display');
   $('#newControls').onclick = () => window.api.open('controls');
   $('#newColors').onclick = () => window.api.open('colors');
+  $('#newNet').onclick = () => window.api.open('network');
   $('#newHelp').onclick = () => window.api.open('help');
   $('#openColors').onclick = () => window.api.open('colors');
   $('#openAudio').onclick = () => window.api.open('audio');
@@ -469,7 +494,7 @@
       const where = (a.host === '0.0.0.0' ? 'http://<this computer\u2019s IP>' : 'http://' + a.host) + ':' + a.port;
       $('#apiNote').textContent = a.ok
         ? 'Remote control (Companion, scripts) is on at ' + where + '.'
-        : 'Remote control is off: ' + a.error + '.';
+        : 'Remote control is off: ' + (a.error || a.waiting || 'unknown problem') + '.';
     });
   }
   // ---- Quit (asks first)
@@ -535,13 +560,16 @@
   if (view === 'display' && KIOSK) {
     // With no launcher on this screen, show where Companion should connect for the first couple of minutes
     const box = $('#kioskInfo');
-    window.api.apiInfo().then((info) => {
-      if (!info.ok) { box.textContent = 'Remote control is not available: ' + (info.error || 'unknown problem'); box.className = 'err'; box.hidden = false; return; }
+    const t0 = Date.now();
+    const showInfo = () => window.api.apiInfo().then((info) => {
+      if (!info.ok) { box.textContent = 'Remote control is not available: ' + (info.error || info.waiting || 'unknown problem'); box.className = 'err'; box.hidden = false; return; }
       const where = (info.ips && info.ips.length ? info.ips : [info.host]).map((a) => a + ':' + info.port).join('    ');
       box.textContent = 'Companion address: ' + where;
+      box.className = '';
       box.hidden = false;
-      setTimeout(() => { box.hidden = true; }, 120000);
     }).catch(() => {});
+    showInfo();
+    const tick = setInterval(() => { if (Date.now() - t0 > 120000) { clearInterval(tick); box.hidden = true; } else showInfo(); }, 5000);
   }
   if (view === 'display') {
     const g = $('#grip');
@@ -1017,12 +1045,95 @@
     };
     const draw = (a) => {
       const base = (a.host === '0.0.0.0' ? 'http://<this computer’s IP>' : 'http://' + a.host) + ':' + a.port;
-      $('#helpState').textContent = a.ok ? 'Remote control is on. Address: ' + base : 'Remote control is off: ' + a.error + '.';
+      $('#helpState').textContent = a.ok ? 'Remote control is on. Address: ' + base : 'Remote control is off: ' + (a.error || a.waiting || 'unknown problem') + '.';
       fill($('#cmdTable'), commands, base);
       fill($('#readTable'), reads, base);
     };
     draw({ ok: true, host: '127.0.0.1', port: 8787, error: '' });
     window.api.apiInfo().then(draw);
+  }
+
+  // ---- Network window: which connection the remote control listens on
+  if (view === 'network') {
+    document.title = 'Network';
+    let info = null, sel = null, listKey = '';
+    const msg = (t, err) => { $('#netMsg').textContent = t || ''; $('#netMsg').className = err ? 'err' : ''; };
+    const choices = () => {
+      const c = [
+        { id: 'local', mode: 'local', label: 'This computer only', addr: '127.0.0.1' },
+        { id: 'all', mode: 'all', label: 'Every network connection', addr: 'all addresses' },
+      ];
+      info.interfaces.forEach((i) => c.push({ id: 'if:' + i.name, mode: 'iface', iface: i.name, label: i.name, addr: i.address }));
+      const cur = info.config;
+      if (cur.mode === 'iface' && !info.interfaces.some((i) => i.name === cur.iface)) c.push({ id: 'if:' + cur.iface, mode: 'iface', iface: cur.iface, label: cur.iface, addr: 'not connected', gone: true });
+      return c;
+    };
+    const curId = () => (info.config.mode === 'iface' ? 'if:' + info.config.iface : info.config.mode);
+    function drawList() {
+      const list = $('#netList');
+      const locked = info.lockedHost;
+      const c = choices();
+      list.textContent = '';
+      c.forEach((ch) => {
+        const lab = document.createElement('label');
+        lab.className = (sel === ch.id ? 'sel ' : '') + (ch.gone ? 'gone' : '');
+        const r = document.createElement('input');
+        r.type = 'radio'; r.name = 'netmode'; r.checked = sel === ch.id; r.disabled = locked || (ch.gone && sel !== ch.id);
+        r.onchange = () => { sel = ch.id; drawList(); drawWarn(); };
+        const n = document.createElement('span'); n.textContent = ch.label;
+        const a = document.createElement('span'); a.className = 'addr'; a.textContent = ch.addr;
+        lab.append(r, n, a);
+        list.appendChild(lab);
+      });
+      if (c.length === 2) {
+        const e = document.createElement('p'); e.className = 'hint'; e.textContent = 'No other network connections were found. Connect to a network and it will appear here.';
+        list.appendChild(e);
+      }
+    }
+    function drawWarn() {
+      $('#netWarn').textContent = sel && sel !== 'local' ? 'Anyone on that network can control the timer (there is no password). Use a network you trust.' : '';
+    }
+    function drawState() {
+      const a = info.api, el = $('#netState');
+      if (a.ok) {
+        const addrs = a.host === '0.0.0.0' ? info.interfaces.map((i) => i.address) : [a.host];
+        el.textContent = a.host === '127.0.0.1' || a.host === 'localhost'
+          ? 'Only programs on this computer can connect. In Companion use host 127.0.0.1, port ' + a.port + '.'
+          : 'In Companion, set host to ' + (addrs.length ? addrs.join(' or ') : '(this computer\u2019s address)') + ' and port to ' + a.port + '.';
+      } else {
+        el.textContent = 'Remote control is off: ' + (a.error || a.waiting || 'unknown problem') + '.';
+      }
+      const lk = [];
+      if (info.lockedHost) lk.push('The app was started with CLOCK_TIMER_HOST set, so the connection choice is fixed at ' + a.host + ' until it is started again without it.');
+      if (info.lockedPort) lk.push('The app was started with CLOCK_TIMER_PORT set, so the port is fixed at ' + a.port + '.');
+      $('#netLocked').hidden = !lk.length; $('#netLocked').textContent = lk.join(' ');
+    }
+    async function load(first) {
+      const prevKey = listKey;
+      info = await window.api.netGet();
+      if (first || sel === null) sel = curId();
+      listKey = JSON.stringify(info.interfaces);
+      if (first) $('#netPort').value = info.lockedPort ? info.api.port : info.config.port;
+      $('#netPort').disabled = info.lockedPort;
+      $('#netApply').disabled = info.lockedHost && info.lockedPort;
+      if (first || listKey !== prevKey) drawList();
+      drawState(); drawWarn();
+    }
+    $('#netApply').onclick = async () => {
+      const ch = choices().find((c) => c.id === sel);
+      const port = parseInt($('#netPort').value, 10);
+      if (!info.lockedPort && !(port >= 1024 && port <= 65535)) { msg('Port must be a number from 1024 to 65535.', true); return; }
+      msg('Applying\u2026');
+      const cfg = {};
+      if (!info.lockedHost && ch) { cfg.mode = ch.mode; cfg.iface = ch.iface || ''; }
+      if (!info.lockedPort) cfg.port = port;
+      const r = await window.api.netSet(cfg);
+      msg(r.ok ? 'Saved.' : r.error, !r.ok);
+      await load(false);
+      if (r.ok) { sel = curId(); drawList(); drawWarn(); }
+    };
+    load(true).catch(() => msg('Could not read the network settings.', true));
+    setInterval(() => { load(false).catch(() => {}); }, 5000);
   }
 
   // ---- Colors window: edit the color rules
@@ -1123,6 +1234,6 @@
   }
 })();
 </script>
-<script>(function(){var a=document.documentElement.classList.contains('android');var u=navigator.userAgent,l=a?'a':(/Mac/.test(u)?'m':(/Linux|X11/.test(u)?'l':'w'));var e=document.getElementById('verLine');if(e)e.textContent='Version 1.10.'+l;})();</script>
+<script>(function(){var a=document.documentElement.classList.contains('android');var u=navigator.userAgent,l=a?'a':(/Mac/.test(u)?'m':(/Linux|X11/.test(u)?'l':'w'));var e=document.getElementById('verLine');if(e)e.textContent='Version 1.11.'+l;})();</script>
 </body>
 </html>

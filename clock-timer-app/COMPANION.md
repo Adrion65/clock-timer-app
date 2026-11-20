@@ -72,11 +72,16 @@ goes back to), `overtime`, `endsAtOnDisplay`, `countdownBar`, `audio` (`muted`, 
 
 ## Changing the address
 
-- Different port: start the app with `CLOCK_TIMER_PORT=9000` set (Mac/Linux:
-  `CLOCK_TIMER_PORT=9000 npm start`, Windows: `set CLOCK_TIMER_PORT=9000 && npm start`).
-- Companion on another computer: also set `CLOCK_TIMER_HOST=0.0.0.0` so the app accepts
-  connections from your network, then use this computer's IP address in the URLs. Anyone on
-  that network could then control the timer, so only do this on a network you trust.
+- In the app, open **Network** from the first window. Choose **This computer only**, **Every network
+  connection**, or one specific connection (for example Ethernet), and set the port. The window shows the
+  host and port to enter in Companion. The choice is remembered. A chosen connection is followed if its
+  address changes, and the app starts listening again when the connection comes back.
+- Kiosk mode (Raspberry Pi) listens on every connection until you choose otherwise.
+- For scripts: start the app with `CLOCK_TIMER_PORT=9000` and/or `CLOCK_TIMER_HOST=0.0.0.0` set
+  (Mac/Linux: `CLOCK_TIMER_PORT=9000 npm start`, Windows: `set CLOCK_TIMER_PORT=9000 && npm start`). While
+  these are set they override the Network window.
+- Anyone on a network the app listens on could control the timer (there is no password), so only do this on a
+  network you trust.
 
 ## Safety
 

@@ -11,6 +11,8 @@ contextBridge.exposeInMainWorld('api', {
   onTimer: (cb) => ipcRenderer.on('timer-state', (_e, s) => cb(s)),
   onDone: (cb) => ipcRenderer.on('timer-done', () => cb()),
   apiInfo: () => ipcRenderer.invoke('api-info'),
+  netGet: () => ipcRenderer.invoke('net-get'),
+  netSet: (c) => ipcRenderer.invoke('net-set', c),
   rulesGet: () => ipcRenderer.invoke('rules-get'),
   rulesSet: (r) => ipcRenderer.invoke('rules-set', r),
   rulesReset: () => ipcRenderer.invoke('rules-reset'),

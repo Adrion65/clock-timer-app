@@ -1,6 +1,6 @@
 # Clock & Timer app
 
-Module version 1.10.c
+Module version 1.11.c
 
 Controls the **Clock & Timer** desktop app. The app must be running, and it must be reachable
 from the computer that runs Companion.
@@ -11,7 +11,8 @@ from the computer that runs Companion.
    (by default `http://127.0.0.1:8787`).
 2. Add this connection. Leave the address as `127.0.0.1` and the port as `8787` when the app and
    Companion run on the same computer. Otherwise enter the app computer's IP address
-   (the app must be started with `CLOCK_TIMER_HOST=0.0.0.0`, see the app's COMPANION.md).
+   (in the app, open **Network** from the first window and choose which network connection it listens
+   on; the Network window shows the address and port to use here).
 3. The connection turns green when it can see the app.
 
 ## Actions

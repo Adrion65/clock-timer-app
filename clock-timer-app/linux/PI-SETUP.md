@@ -4,7 +4,7 @@ One Raspberry Pi 5 shows the timer full screen on a TV or projector. Bitfocus Co
 computer on the same network and presses the buttons. Use this on a **private network** (the timer's
 remote-control address has no password in this mode, so anyone on the network could control it).
 
-This is the Debian version (file name `Clock-Timer-1.10.l-arm64.deb`). Raspberry Pi OS is Debian, so it installs
+This is the Debian version (file name `Clock-Timer-1.11.l-arm64.deb`). Raspberry Pi OS is Debian, so it installs
 there like any other app.
 
 ## What you need
@@ -70,8 +70,8 @@ Open **Preferences > Raspberry Pi Configuration** (or run `sudo raspi-config`):
 
 ## 3. Install the app
 
-1. Download **Clock-Timer-1.10.l-arm64.deb** from GitHub and copy it to the Pi (a USB stick, or download it on the Pi).
-2. Double-click it and choose **Install**. (Or, in a terminal: `sudo apt install ./Clock-Timer-1.10.l-arm64.deb`.)
+1. Download **Clock-Timer-1.11.l-arm64.deb** from GitHub and copy it to the Pi (a USB stick, or download it on the Pi).
+2. Double-click it and choose **Install**. (Or, in a terminal: `sudo apt install ./Clock-Timer-1.11.l-arm64.deb`.)
 
 ## 4. Make it start by itself, full screen
 
