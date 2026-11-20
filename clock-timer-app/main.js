@@ -833,12 +833,15 @@ ipcMain.handle('open', (_e, view) => {
   }
   create(view);
 });
-// Transparent windows cannot be resized by dragging their edge, so the page has a corner grip that asks for a size
+// The Timer display has a corner grip that asks for a size (the only way for a see-through window, and it also works
+// when the operating system's own edge resizing does not, and from a maximized window)
 ipcMain.handle('resize-to', (e, w, h) => {
   const win = BrowserWindow.fromWebContents(e.sender);
   if (!win || roles.get(e.sender.id) !== 'display') return;
   w = Math.round(Number(w)); h = Math.round(Number(h));
   if (!Number.isFinite(w) || !Number.isFinite(h)) return;
+  if (win.isFullScreen() && !KIOSK) win.setFullScreen(false);
+  if (win.isMaximized()) win.unmaximize();
   const [mw, mh] = win.getMinimumSize();
   win.setSize(Math.min(4000, Math.max(mw || 200, w)), Math.min(3000, Math.max(mh || 90, h)));
 });

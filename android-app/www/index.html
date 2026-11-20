@@ -209,11 +209,11 @@
   #kioskInfo { position: fixed; left: 0; right: 0; bottom: 2.2vh; text-align: center; font-size: clamp(14px, 2.6vh, 28px); color: var(--muted); font-variant-numeric: tabular-nums; pointer-events: none; }
   #kioskInfo[hidden] { display: none; }
   #kioskInfo.err { color: var(--alert); font-weight: 600; }
-  /* corner grip: only on a see-through display window, which cannot be resized by its edge */
+  /* corner grip on the Timer display: the only way to resize a see-through window, and a dependable one for the others */
   #grip { display: none; position: fixed; right: 2px; bottom: 2px; width: 22px; height: 22px; cursor: nwse-resize; -webkit-app-region: no-drag; opacity: 0; transition: opacity .15s;
     background: linear-gradient(135deg, transparent 0 50%, var(--muted) 50% 56%, transparent 56% 68%, var(--muted) 68% 74%, transparent 74% 86%, var(--muted) 86% 92%, transparent 92%); }
-  body[data-view="display"].see-through #grip { display: block; }
-  body[data-view="display"].see-through:hover #grip { opacity: .8; }
+  body[data-view="display"] #grip { display: block; }
+  body[data-view="display"]:hover #grip, #grip:active { opacity: .8; }
   /* Display look settings (Timer colors window) */
   #lookBox { text-align: left; margin-bottom: 14px; padding-bottom: 12px; border-bottom: 1px solid var(--line); }
   #lookBox h3 { font-size: 13px; font-weight: 600; margin: 12px 0 6px; color: var(--muted); }
@@ -597,6 +597,7 @@
     g.addEventListener('pointerdown', (e) => {
       g.setPointerCapture(e.pointerId);
       drag = { x: e.screenX, y: e.screenY, w: window.outerWidth, h: window.outerHeight };
+      if (window.api.resizeTo) window.api.resizeTo(drag.w, drag.h); // also leaves a maximized window, keeping its size
       e.preventDefault();
     });
     g.addEventListener('pointermove', (e) => {
@@ -1254,6 +1255,6 @@
   }
 })();
 </script>
-<script>(function(){var a=document.documentElement.classList.contains('android');var u=navigator.userAgent,l=a?'a':(/Mac/.test(u)?'m':(/Linux|X11/.test(u)?'l':'w'));var e=document.getElementById('verLine');if(e)e.textContent='Version 1.11.'+l;})();</script>
+<script>(function(){var a=document.documentElement.classList.contains('android');var u=navigator.userAgent,l=a?'a':(/Mac/.test(u)?'m':(/Linux|X11/.test(u)?'l':'w'));var e=document.getElementById('verLine');if(e)e.textContent='Version 1.12.'+l;})();</script>
 </body>
 </html>
