@@ -78,11 +78,11 @@ jobs:
 
       - name: Name the file
         working-directory: ${{ steps.find.outputs.dir }}
-        run: cp android/app/build/outputs/apk/debug/app-debug.apk Clock-Timer-1.8.a.apk
+        run: cp android/app/build/outputs/apk/debug/app-debug.apk Clock-Timer-1.10.a.apk
 
       - name: Keep the finished app
         uses: actions/upload-artifact@v7
         with:
-          name: Clock-Timer-1.8.a-Android
-          path: ${{ steps.find.outputs.dir }}/Clock-Timer-1.8.a.apk
+          name: Clock-Timer-1.10.a-Android
+          path: ${{ steps.find.outputs.dir }}/Clock-Timer-1.10.a.apk
           if-no-files-found: error
