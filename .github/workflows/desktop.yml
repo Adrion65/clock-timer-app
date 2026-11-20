@@ -19,29 +19,29 @@ jobs:
           - name: Mac (Apple Silicon)
             os: macos-latest
             build: npm run dist:mac -- --arm64 --publish never
-            artifact: Clock-Timer-1.12.m-Apple-Silicon
-            zip: Clock-Timer-1.12.m-Apple-Silicon.zip
+            artifact: Clock-Timer-1.14.m-Apple-Silicon
+            zip: Clock-Timer-1.14.m-Apple-Silicon.zip
             files: dist/*.zip
           - name: Mac (Intel)
             os: macos-latest
             build: npm run dist:mac -- --x64 --publish never
-            artifact: Clock-Timer-1.12.m-Intel
-            zip: Clock-Timer-1.12.m-Intel.zip
+            artifact: Clock-Timer-1.14.m-Intel
+            zip: Clock-Timer-1.14.m-Intel.zip
             files: dist/*.zip
           - name: Debian / Raspberry Pi (arm64)
             os: ubuntu-latest
             build: npm run dist:linux -- --arm64 --publish never
-            artifact: Clock-Timer-1.12.l-Raspberry-Pi-arm64
+            artifact: Clock-Timer-1.14.l-Raspberry-Pi-arm64
             files: dist/*.deb
           - name: Debian PC (x64)
             os: ubuntu-latest
             build: npm run dist:linux -- --x64 --publish never
-            artifact: Clock-Timer-1.12.l-Debian-PC-x64
+            artifact: Clock-Timer-1.14.l-Debian-PC-x64
             files: dist/*.deb
           - name: Windows
             os: windows-latest
             build: npm run dist:win -- --publish never
-            artifact: Clock-Timer-1.12.w-Windows
+            artifact: Clock-Timer-1.14.w-Windows
             files: dist/*.exe
     steps:
       - uses: actions/checkout@v5
