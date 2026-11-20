@@ -32,6 +32,7 @@ timer's full status as JSON, so you can also test any URL in a terminal:
 | Sound volume, sound, repeats    | `/audio/volume?value=60`  `/audio/sound?name=bell` (beep, chime, bell, alarm)  `/audio/repeats?value=3` |
 | Play the end sound              | `/audio/test`                                          |
 | Count up after zero on the display | `/overtime/on`  `/overtime/off`  `/overtime/toggle` |
+| Countdown bar on the display    | `/bar/on`  `/bar/off`  `/bar/toggle`                   |
 | "Ends at" line on the display   | `/endshow/on`  `/endshow/off`  `/endshow/toggle`       |
 | Timer display stays on top      | `/displaytop/on`  `/displaytop/off`  `/displaytop/toggle` |
 | Run of show                     | `/show/next`  `/show/prev`  `/show/go?segment=2`  `/show/auto/on`  `/show/auto/off`  `/show/auto/toggle` |
@@ -66,7 +67,7 @@ These return plain text, which is handy for tools that just want a value:
 `/status` returns everything as JSON: `state`, `remaining`, `remainingMs`, `progress`,
 `timeTravel`, `mode`, `speed`, `effectiveSpeed`, `endTimeSetting`, `endsAt`, `endsAtText`,
 `color`, `display` (`shown`, `hidden` or `closed`), `face` (`timer` or `clock`), `notice`, `baseMs` (what Reset
-goes back to), `overtime`, `endsAtOnDisplay`, `audio` (`muted`, `volume`, `sound`, `repeats`), `show` (`count`,
+goes back to), `overtime`, `endsAtOnDisplay`, `countdownBar`, `audio` (`muted`, `volume`, `sound`, `repeats`), `show` (`count`,
 `index` starting at 1 with 0 meaning none yet, `name`, `next`, `auto`, `secs`), `look` and `displayTop`.
 
 ## Changing the address

@@ -1,12 +1,13 @@
 {
   "name": "clock-timer",
-  "version": "1.8.0",
+  "version": "1.10.0",
   "description": "Pop-out clock and timer windows",
   "main": "main.js",
   "scripts": {
     "start": "electron .",
     "dist:mac": "electron-builder --mac",
-    "dist:win": "electron-builder --win"
+    "dist:win": "electron-builder --win",
+    "dist:linux": "electron-builder --linux"
   },
   "build": {
     "appId": "com.example.clocktimer",
@@ -23,7 +24,24 @@
     },
     "win": {
       "target": "portable",
-      "artifactName": "Clock-Timer-1.8.w.exe"
+      "artifactName": "Clock-Timer-1.10.w.exe"
+    },
+    "linux": {
+      "target": [
+        {
+          "target": "deb",
+          "arch": [
+            "arm64",
+            "x64"
+          ]
+        }
+      ],
+      "category": "Utility",
+      "maintainer": "Clock & Timer <noreply@example.com>",
+      "synopsis": "Clock and timer",
+      "artifactName": "Clock-Timer-1.10.l-${arch}.${ext}"
     }
-  }
+  },
+  "homepage": "https://github.com",
+  "author": "Clock & Timer <noreply@example.com>"
 }

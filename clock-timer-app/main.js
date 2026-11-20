@@ -2,6 +2,7 @@ const { app, BrowserWindow, ipcMain, Menu, nativeTheme } = require('electron');
 const path = require('path');
 const fs = require('fs');
 const http = require('http');
+const os = require('os');
 
 // Let the finish beep play without needing a click in that window
 app.commandLine.appendSwitch('autoplay-policy', 'no-user-gesture-required');
@@ -68,6 +69,7 @@ function loadShow() {
 function saveShow() {
   try { fs.writeFileSync(showFile(), JSON.stringify({ segments: show.segments, auto: show.auto })); } catch (e) { /* ignore */ }
 }
+let barOn = true; // show the countdown bar on the display
 let endOnDisplay = true; // show "ends at ..." under the countdown on the display
 // How the Timer display window looks (font, background, text). Only the Timer display uses this.
 const FONTS = ['default', 'inter', 'oswald', 'barlow', 'bebas', 'orbitron', 'sharetech', 'jetbrains', 'robotomono', 'spacemono'];
@@ -89,10 +91,10 @@ function cleanLook(a, base) {
 }
 const settingsFile = () => path.join(app.getPath('userData'), 'settings.json');
 function loadSettings() {
-  try { const s = JSON.parse(fs.readFileSync(settingsFile(), 'utf8')); if (typeof s.overtimeDisplay === 'boolean') overtimeDisplay = s.overtimeDisplay; if (typeof s.endOnDisplay === 'boolean') endOnDisplay = s.endOnDisplay; const p = cleanPresets(s.presets); if (p) presets = p; if (s.look) look = cleanLook(s.look, look); if (typeof s.displayTop === 'boolean') displayTop = s.displayTop; } catch (e) { /* defaults */ }
+  try { const s = JSON.parse(fs.readFileSync(settingsFile(), 'utf8')); if (typeof s.overtimeDisplay === 'boolean') overtimeDisplay = s.overtimeDisplay; if (typeof s.endOnDisplay === 'boolean') endOnDisplay = s.endOnDisplay; if (typeof s.barOn === 'boolean') barOn = s.barOn; const p = cleanPresets(s.presets); if (p) presets = p; if (s.look) look = cleanLook(s.look, look); if (typeof s.displayTop === 'boolean') displayTop = s.displayTop; } catch (e) { /* defaults */ }
 }
 function saveSettings() {
-  try { fs.writeFileSync(settingsFile(), JSON.stringify({ overtimeDisplay, endOnDisplay, presets, look, displayTop })); } catch (e) { /* ignore */ }
+  try { fs.writeFileSync(settingsFile(), JSON.stringify({ overtimeDisplay, endOnDisplay, barOn, presets, look, displayTop })); } catch (e) { /* ignore */ }
 }
 
 let face = 'timer'; // what the Timer display windows show: 'timer' or 'clock'
@@ -110,6 +112,7 @@ const snapshot = () => ({
   doneAt: timer.state === 'done' ? timer.doneAt : 0,
   overtimeDisplay,
   endOnDisplay,
+  barOn,
   presets,
   show,
 });
@@ -144,7 +147,7 @@ function setDisplay(action) {
 const winMeta = new Map(); // webContents id -> { transparent }
 function syncDisplayWindows() {
   if (displayHidden) return; // they are brought up to date when shown again
-  const want = look.alpha < 100;
+  const want = look.alpha < 100 && !KIOSK;
   for (const w of displays()) {
     const meta = winMeta.get(w.webContents.id);
     if (meta && meta.transparent !== want) {
@@ -285,6 +288,9 @@ function timerCmd(cmd, arg) {
   } else if (cmd === 'endshow' && ['on', 'off', 'toggle'].includes(arg)) {
     endOnDisplay = arg === 'toggle' ? !endOnDisplay : arg === 'on';
     saveSettings();
+  } else if (cmd === 'bar' && ['on', 'off', 'toggle'].includes(arg)) {
+    barOn = arg === 'toggle' ? !barOn : arg === 'on';
+    saveSettings();
   } else if (cmd === 'look' && arg && typeof arg === 'object') {
     look = cleanLook(arg, look);
     saveSettings();
@@ -385,8 +391,11 @@ ipcMain.handle('rules-reset', () => {
 });
 
 // ---- Remote control API (Bitfocus Companion, scripts, anything that can open a URL)
+// Kiosk mode (for a dedicated screen such as a Raspberry Pi): no launcher, the Timer display fills the screen,
+// the remote-control address is open to the local network, and Companion does the controlling.
+const KIOSK = process.argv.includes('--kiosk') || process.env.CLOCK_TIMER_KIOSK === '1';
 const API_PORT = Number(process.env.CLOCK_TIMER_PORT) || 8787;
-const API_HOST = process.env.CLOCK_TIMER_HOST || '127.0.0.1';
+const API_HOST = process.env.CLOCK_TIMER_HOST || (KIOSK ? '0.0.0.0' : '127.0.0.1');
 const LOOPBACK = ['127.0.0.1', 'localhost', '::1'];
 const api = { ok: false, host: API_HOST, port: API_PORT, error: '' };
 let apiReadyResolve;
@@ -438,6 +447,7 @@ function apiStatus() {
     baseMs: timer.baseTotal,
     overtime: overtimeDisplay,
     endsAtOnDisplay: endOnDisplay,
+    countdownBar: barOn,
     audio: { ...audio },
     show: showStatus(),
     look: { ...look },
@@ -578,6 +588,7 @@ function handleApi(req, res) {
 
     // Display options
     case '/overtime/on': case '/overtime/off': case '/overtime/toggle': timerCmd('overtime', route.split('/')[2]); return ok();
+    case '/bar/on': case '/bar/off': case '/bar/toggle': timerCmd('bar', route.split('/')[2]); return ok();
     case '/endshow/on': case '/endshow/off': case '/endshow/toggle': timerCmd('endshow', route.split('/')[2]); return ok();
     case '/displaytop/on': case '/displaytop/off': case '/displaytop/toggle': timerCmd('displaytop', route.split('/')[2]); return ok();
 
@@ -628,7 +639,13 @@ function startApi() {
   });
   srv.listen(API_PORT, API_HOST, () => { api.ok = true; api.error = ''; apiReadyResolve(); });
 }
-ipcMain.handle('api-info', async () => { await apiReady; return api; });
+// Addresses of this computer on the local network, shown on the kiosk screen so Companion can be pointed at it
+function lanAddresses() {
+  const out = [];
+  for (const list of Object.values(os.networkInterfaces())) for (const i of list || []) if (i.family === 'IPv4' && !i.internal) out.push(i.address);
+  return out;
+}
+ipcMain.handle('api-info', async () => { await apiReady; return { ...api, ips: lanAddresses(), kiosk: KIOSK }; });
 
 // ---- Windows
 // Keep pinned windows above other apps. On Windows the plain "floating" level can be covered by other
@@ -648,7 +665,7 @@ if (process.platform === 'win32') {
 function create(view, opts = {}) {
   const popup = view !== 'launcher' && view !== 'help'; // help is a normal window
   const n = BrowserWindow.getAllWindows().length;
-  const transparent = view === 'display' && look.alpha < 100;
+  const transparent = view === 'display' && look.alpha < 100 && !KIOSK;
   const onTop = view === 'display' ? displayTop : popup;
 
   const win = new BrowserWindow({
@@ -658,6 +675,7 @@ function create(view, opts = {}) {
     alwaysOnTop: onTop,
     show: !opts.bounds,
     ...(transparent ? { transparent: true, resizable: false, hasShadow: false } : {}),
+    ...(KIOSK && view === 'display' ? { fullscreen: true, kiosk: true, resizable: false } : {}),
     autoHideMenuBar: true,
     title: view === 'help' ? 'Remote control help' : 'Clock & Timer',
     backgroundColor: transparent ? '#00000000' : nativeTheme.shouldUseDarkColors ? '#12161c' : '#f3f5f8',
@@ -680,8 +698,10 @@ function create(view, opts = {}) {
     // or quit the program, so open the launcher. Checked a moment later so a window being swapped is not mistaken.
     setTimeout(() => {
       const all = BrowserWindow.getAllWindows();
-      if (all.length > 0 && all.every((w) => !w.isVisible())) create('launcher');
+      if (!KIOSK && all.length > 0 && all.every((w) => !w.isVisible())) create('launcher');
     }, 700);
+    // On a dedicated screen nobody can reopen the display by hand, so bring it straight back
+    if (KIOSK && view === 'display' && !quitting) setTimeout(() => { if (!quitting && displays().length === 0) create('display'); }, 500);
     if (view === 'display') {
       if (displays().length === 0) displayHidden = false;
       broadcast();
@@ -703,7 +723,7 @@ function create(view, opts = {}) {
       win.setPosition(x + 30 * (n % 6), y + 30 * (n % 6));
     }
   }
-  win.loadFile('index.html', { query: { view } });
+  win.loadFile('index.html', { query: { view, ...(KIOSK ? { kiosk: '1' } : {}) } });
   return win;
 }
 
@@ -743,7 +763,9 @@ app.whenReady().then(() => {
   loadSettings();
   loadShow();
   startApi();
-  create('launcher');
+  create(KIOSK ? 'display' : 'launcher');
 });
 
-app.on('window-all-closed', () => app.quit());
+let quitting = false;
+app.on('before-quit', () => { quitting = true; });
+app.on('window-all-closed', () => { if (!KIOSK) app.quit(); });

@@ -1,6 +1,6 @@
 # Clock & Timer app
 
-Module version 1.8.c
+Module version 1.10.c
 
 Controls the **Clock & Timer** desktop app. The app must be running, and it must be reachable
 from the computer that runs Companion.
@@ -27,7 +27,7 @@ from the computer that runs Companion.
   goes back to the original duration.
 - Count down to a time of day (for example 14:45 or 2:45pm)
 - Sound: mute / unmute / toggle, volume (set or change), sound choice, repeats, play the end sound
-- Count up after zero on the display, the "ends at" line on the display, and keeping the Timer
+- Count up after zero on the display, the countdown bar, the "ends at" line on the display, and keeping the Timer
   display on top: each on / off / toggle
 - Run of show: next segment, previous segment, go to a segment number, automatic next segment
 - Timer display look: font, weight, background (normal or any color), opacity (0 = see-through),
@@ -45,7 +45,7 @@ of a session.
 - App connected
 - Timer display is showing
 - Timer display shows timer / clock
-- Count up after zero is on, "ends at" line is on, Timer display stays on top is on
+- Count up after zero is on, countdown bar is on, "ends at" line is on, Timer display stays on top is on
 - Sound is muted
 - Run of show: automatic next is on, and current segment is (a chosen number)
 - Timer display background is see-through
@@ -55,7 +55,7 @@ of a session.
 
 `remaining`, `remaining_seconds`, `progress_percent`, `state`, `time_travel`, `mode`, `speed`,
 `effective_speed`, `speed_text`, `end_time_setting`, `ends_at`, `color`, `notice`, `connected`, `display`, `face`,
-`duration` (what Reset goes back to), `overtime`, `ends_at_display`, `muted`, `volume`, `sound`, `repeats`,
+`duration` (what Reset goes back to), `overtime`, `ends_at_display`, `countdown_bar`, `muted`, `volume`, `sound`, `repeats`,
 `segment_number`, `segment_count`, `segment_name`, `segment_next`, `segment_auto`, `segment_text` (like "2 of 4"),
 `font`, `weight`, `background`, `opacity`, `text_color`, `text_shadow`, `display_on_top`.
 

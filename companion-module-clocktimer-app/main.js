@@ -63,6 +63,7 @@ const OFFLINE = {
 	duration: '--:--',
 	overtime: '',
 	ends_at_display: '',
+	countdown_bar: '',
 	muted: '',
 	volume: '',
 	sound: '',
@@ -119,6 +120,7 @@ export default class ClockTimerInstance extends InstanceBase {
 			duration: { name: 'Duration the timer resets to (mm:ss or h:mm:ss)' },
 			overtime: { name: 'Count up after zero on the display (on or off)' },
 			ends_at_display: { name: 'Ends-at line on the display (on or off)' },
+			countdown_bar: { name: 'Countdown bar on the display (on or off)' },
 			muted: { name: 'Sound muted (on or off)' },
 			volume: { name: 'Sound volume (0 to 100)' },
 			sound: { name: 'Sound (beep, chime, bell or alarm)' },
@@ -284,7 +286,7 @@ export default class ClockTimerInstance extends InstanceBase {
 		const s = this.state
 		const sig = s
 			? [
-					s.state, s.timeTravel, s.mode, s.color, s.display, s.face, s.overtime, s.endsAtOnDisplay, s.displayTop,
+					s.state, s.timeTravel, s.mode, s.color, s.display, s.face, s.overtime, s.endsAtOnDisplay, s.countdownBar, s.displayTop,
 					s.audio && s.audio.muted, s.show && s.show.auto, s.show && s.show.index, s.look && s.look.alpha,
 				].join('|')
 			: 'offline'
@@ -292,7 +294,7 @@ export default class ClockTimerInstance extends InstanceBase {
 		this.sig = sig
 		this.checkFeedbacks(
 			'connected', 'state_is', 'travel_on', 'mode_is', 'timer_color', 'display_shown', 'face_is',
-			'overtime_on', 'ends_at_display_on', 'muted_on', 'segment_auto_on', 'segment_is', 'display_top_on', 'see_through_on',
+			'overtime_on', 'ends_at_display_on', 'countdown_bar_on', 'muted_on', 'segment_auto_on', 'segment_is', 'display_top_on', 'see_through_on',
 		)
 	}
 
@@ -323,6 +325,7 @@ export default class ClockTimerInstance extends InstanceBase {
 					duration: clockText(b.baseMs != null ? b.baseMs : b.totalMs),
 					overtime: onOff(b.overtime),
 					ends_at_display: onOff(b.endsAtOnDisplay),
+					countdown_bar: onOff(b.countdownBar),
 					muted: onOff(a.muted),
 					volume: a.volume != null ? a.volume : '',
 					sound: a.sound || '',
@@ -584,6 +587,14 @@ export default class ClockTimerInstance extends InstanceBase {
 					await this.command(`/overtime/${options.mode}`)
 				},
 			},
+			countdown_bar: {
+				name: 'Countdown bar on the display',
+				description: 'The bar that shrinks under the countdown',
+				options: [choice('mode', 'Countdown bar', 'toggle', ON_OFF_TOGGLE)],
+				callback: async ({ options }) => {
+					await this.command(`/bar/${options.mode}`)
+				},
+			},
 			ends_at_display: {
 				name: 'Ends-at line on the display',
 				description: 'The small "ends at 2:45 PM" line under the countdown',
@@ -796,6 +807,13 @@ export default class ClockTimerInstance extends InstanceBase {
 				defaultStyle: { bgcolor: BLUE, color: WHITE },
 				options: [],
 				callback: () => !!this.state && this.state.overtime === true,
+			},
+			countdown_bar_on: {
+				type: 'boolean',
+				name: 'Countdown bar on the display is on',
+				defaultStyle: { bgcolor: BLUE, color: WHITE },
+				options: [],
+				callback: () => !!this.state && this.state.countdownBar === true,
 			},
 			ends_at_display_on: {
 				type: 'boolean',
@@ -1016,6 +1034,14 @@ export default class ClockTimerInstance extends InstanceBase {
 
 			// What the display shows
 			const displayOptions = [
+				add(
+					'bar_toggle',
+					'Countdown bar on the display',
+					`COUNTDOWN\\nBAR\\n${v('countdown_bar')}`,
+					GREY,
+					[{ actionId: 'countdown_bar', options: { mode: 'toggle' } }],
+					[{ feedbackId: 'countdown_bar_on', options: {}, style: { bgcolor: BLUE, color: WHITE } }],
+				),
 				add(
 					'ends_at_toggle',
 					'Ends-at line on the display',

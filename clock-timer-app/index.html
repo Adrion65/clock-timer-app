@@ -173,6 +173,7 @@
   body[data-view="display"] #dispEnd, body[data-view="display"] #dispClockDate { font-weight: var(--dsub, 400); }
   body[data-view="display"] section#display { text-shadow: var(--dshadow, none); }
   body[data-view="display"] .bar { background: var(--track, var(--line)); }
+  body[data-view="display"].nobar .bar { display: none; }
   /* Display window: the buttons fade away and come back when the pointer is over the top right corner.
      (Windows does not report hovering over the draggable area, so the corner is its own small target.) */
   body[data-view="display"] #ctl { opacity: 0; transition: opacity .35s ease; top: 0; right: 0; padding: 6px 6px 16px 24px;
@@ -190,6 +191,12 @@
   #quitDlg .row { justify-content: flex-end; margin-top: 12px; }
   #quitDlg button.danger { background: var(--alert); border-color: var(--alert); color: #1a0b09; font-weight: 600; }
   .android .quit, .android #quitDlg { display: none !important; }
+  /* Kiosk mode (dedicated screen): no mouse pointer, no buttons, just the display */
+  html.kiosk, html.kiosk * { cursor: none !important; }
+  html.kiosk #ctl, html.kiosk #grip { display: none !important; }
+  #kioskInfo { position: fixed; left: 0; right: 0; bottom: 2.2vh; text-align: center; font-size: clamp(14px, 2.6vh, 28px); color: var(--muted); font-variant-numeric: tabular-nums; pointer-events: none; }
+  #kioskInfo[hidden] { display: none; }
+  #kioskInfo.err { color: var(--alert); font-weight: 600; }
   /* corner grip: only on a see-through display window, which cannot be resized by its edge */
   #grip { display: none; position: fixed; right: 2px; bottom: 2px; width: 22px; height: 22px; cursor: nwse-resize; -webkit-app-region: no-drag; opacity: 0; transition: opacity .15s;
     background: linear-gradient(135deg, transparent 0 50%, var(--muted) 50% 56%, transparent 56% 68%, var(--muted) 68% 74%, transparent 74% 86%, var(--muted) 86% 92%, transparent 92%); }
@@ -240,6 +247,7 @@
 </section>
 
 <div id="grip" title="Drag to resize"></div>
+<div id="kioskInfo" hidden></div>
 <section id="display">
   <div id="dispTimerFace">
     <p class="digits fit" id="dispTime"></p>
@@ -299,6 +307,7 @@
     <button id="topToggle" title="Keep the Timer display above other windows">Display on top: On</button>
     <button class="quit" id="quitCtl" title="Close every window and stop the program">Quit Clock &amp; Timer</button>
     <button id="endToggle" title="Show the real clock time the timer will finish, under the countdown on the Timer display">Display ends-at: On</button>
+    <button id="barToggle" title="Show the countdown bar under the time on the Timer display">Display countdown bar: On</button>
     <button id="overToggle" title="Show the count-up after zero on the Timer display (the controls window always shows it)">Display overtime: On</button>
   </div>
 </section>
@@ -417,6 +426,8 @@
   const $ = (s) => document.querySelector(s);
   const two = (n) => String(n).padStart(2, '0');
   const view = new URLSearchParams(location.search).get('view') || 'launcher';
+  const KIOSK = new URLSearchParams(location.search).get('kiosk') === '1';
+  if (KIOSK) document.documentElement.classList.add('kiosk');
   document.body.dataset.view = view;
 
   // Scale big digits to fill the window (width and height), at any window size
@@ -433,7 +444,7 @@
       if (document.body.dataset.face === 'clock') {
         fit($('#dispClockTime'), 0.5);
         $('#dispClockDate').style.fontSize = Math.max(12, parseFloat($('#dispClockTime').style.fontSize) * 0.2) + 'px';
-      } else fit($('#dispTime'), 0.62);
+      } else fit($('#dispTime'), document.body.classList.contains('nobar') ? 0.74 : 0.62);
     }
     if (view === 'clock') {
       fit($('#clockTime'), 0.5);
@@ -497,6 +508,7 @@
   let lookSig = '';
   function applyLook(L) {
     if (view !== 'display' || !L) return;
+    if (KIOSK && L.alpha < 100) L = { ...L, alpha: 100 }; // a full-screen display has nothing behind it
     const dark = window.matchMedia('(prefers-color-scheme: dark)').matches;
     const sig = JSON.stringify(L) + dark;
     if (sig === lookSig) return;
@@ -519,6 +531,17 @@
     const refitNow = () => { fitLen = -1; refit(); };
     refitNow();
     if (FONT_CSS[L.font] && document.fonts) document.fonts.load('100px ' + FONT_CSS[L.font].split(',')[0]).then(refitNow, () => {});
+  }
+  if (view === 'display' && KIOSK) {
+    // With no launcher on this screen, show where Companion should connect for the first couple of minutes
+    const box = $('#kioskInfo');
+    window.api.apiInfo().then((info) => {
+      if (!info.ok) { box.textContent = 'Remote control is not available: ' + (info.error || 'unknown problem'); box.className = 'err'; box.hidden = false; return; }
+      const where = (info.ips && info.ips.length ? info.ips : [info.host]).map((a) => a + ':' + info.port).join('    ');
+      box.textContent = 'Companion address: ' + where;
+      box.hidden = false;
+      setTimeout(() => { box.hidden = true; }, 120000);
+    }).catch(() => {});
   }
   if (view === 'display') {
     const g = $('#grip');
@@ -632,6 +655,7 @@
       const p = v.split(':').map((x) => parseInt(x, 10));
       window.api.timerCmd('until', p[0] * 3600 + p[1] * 60 + (p[2] || 0));
     };
+    $('#barToggle').onclick = () => window.api.timerCmd('bar', 'toggle');
     $('#endToggle').onclick = () => window.api.timerCmd('endshow', 'toggle');
     $('#overToggle').onclick = () => window.api.timerCmd('overtime', 'toggle');
     $('#faceToggle').onclick = () => window.api.timerCmd('face', 'toggle');
@@ -744,6 +768,10 @@
         : '\u00a0';
       $('#endToggle').textContent = 'Display ends-at: ' + (S.endOnDisplay ? 'On' : 'Off');
       $('#endToggle').setAttribute('aria-pressed', !!S.endOnDisplay);
+      const barShown = S.barOn !== false;
+      $('#barToggle').textContent = 'Display countdown bar: ' + (barShown ? 'On' : 'Off');
+      $('#barToggle').setAttribute('aria-pressed', barShown);
+      if (document.body.classList.contains('nobar') === barShown) { document.body.classList.toggle('nobar', !barShown); refit(); }
       const lockedAdj = S.state === 'done';
       $('#minus1').disabled = $('#plus1').disabled = lockedAdj;
       $('#untilGo').disabled = S.state === 'running' || S.state === 'paused';
@@ -1095,6 +1123,6 @@
   }
 })();
 </script>
-<script>(function(){var a=document.documentElement.classList.contains('android');var l=a?'a':(/Mac/.test(navigator.userAgent)?'m':'w');var e=document.getElementById('verLine');if(e)e.textContent='Version 1.8.'+l;})();</script>
+<script>(function(){var a=document.documentElement.classList.contains('android');var u=navigator.userAgent,l=a?'a':(/Mac/.test(u)?'m':(/Linux|X11/.test(u)?'l':'w'));var e=document.getElementById('verLine');if(e)e.textContent='Version 1.10.'+l;})();</script>
 </body>
 </html>
