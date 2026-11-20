@@ -835,6 +835,22 @@ ipcMain.handle('open', (_e, view) => {
 });
 // The Timer display has a corner grip that asks for a size (the only way for a see-through window, and it also works
 // when the operating system's own edge resizing does not, and from a maximized window)
+// Set a window's size and check that it took. On some Windows setups a window the person cannot resize by hand
+// (a see-through one) grows when asked but ignores a request to get smaller, so if the size did not change,
+// lift the limits for a moment and try again.
+function forceSize(win, w, h) {
+  const close = () => { const [cw, ch] = win.getSize(); return Math.abs(cw - w) <= 3 && Math.abs(ch - h) <= 3; };
+  win.setSize(w, h);
+  if (close()) return;
+  const [mw, mh] = win.getMinimumSize();
+  const wasResizable = win.isResizable();
+  try { win.setMinimumSize(1, 1); win.setSize(w, h); } catch (e) { /* try the next way */ }
+  if (!close()) {
+    try { win.setResizable(true); win.setSize(w, h); } catch (e) { /* give up quietly */ }
+    try { win.setResizable(wasResizable); } catch (e) { /* ignore */ }
+  }
+  try { win.setMinimumSize(mw, mh); } catch (e) { /* ignore */ }
+}
 ipcMain.handle('resize-to', (e, w, h) => {
   const win = BrowserWindow.fromWebContents(e.sender);
   if (!win || roles.get(e.sender.id) !== 'display') return;
@@ -843,7 +859,7 @@ ipcMain.handle('resize-to', (e, w, h) => {
   if (win.isFullScreen() && !KIOSK) win.setFullScreen(false);
   if (win.isMaximized()) win.unmaximize();
   const [mw, mh] = win.getMinimumSize();
-  win.setSize(Math.min(4000, Math.max(mw || 200, w)), Math.min(3000, Math.max(mh || 90, h)));
+  forceSize(win, Math.min(4000, Math.max(mw || 200, w)), Math.min(3000, Math.max(mh || 90, h)));
 });
 // Quit the whole program, including hidden windows (the page asks the person to confirm first)
 ipcMain.handle('quit-app', () => { app.quit(); });
