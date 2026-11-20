@@ -766,7 +766,7 @@ function create(view, opts = {}) {
   const onTop = view === 'display' ? displayTop : popup;
 
   const win = new BrowserWindow({
-    ...(popup ? SIZES[view] : view === 'help' ? SIZES.help : { width: 480, height: 430, resizable: false }),
+    ...(popup ? SIZES[view] : view === 'help' ? SIZES.help : { width: 500, height: 600, minWidth: 440, minHeight: 440 }),
     ...(opts.bounds ? opts.bounds : {}),
     frame: !popup,
     alwaysOnTop: onTop,
